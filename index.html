@@ -186,6 +186,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="hEmail" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="hJC" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>🛡️ EDR / Checkpoint</label><label class="tgl"><input type="checkbox" id="hEDR" checked><span class="tgl-s"></span></label></div>
+        <div class="tg-item"><label>🔒 Zscaler (Device Export CSV)</label><label class="tgl"><input type="checkbox" id="hZS"><span class="tgl-s"></span></label></div>
       </div>
     </div>
     <div class="mo-acts">
@@ -216,12 +217,13 @@ function showToast(m){const t=document.getElementById('toast');t.textContent=m;t
 function openAddCompany(){
   document.getElementById('coName').value='';
   ['hEmail','hJC','hEDR'].forEach(x=>document.getElementById(x).checked=true);
+  document.getElementById('hZS').checked=false;
   document.getElementById('addModal').classList.add('open');
 }
 function saveCompany(){
   const name=document.getElementById('coName').value.trim();
   if(!name)return alert('Enter company name');
-  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked});
+  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked,hasZS:document.getElementById('hZS').checked});
   saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
 }
 function deleteCompany(id){
@@ -234,7 +236,7 @@ function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compa
 function renderCo(){
   document.getElementById('coGrid').innerHTML=companies.map(c=>{
     const h=history[c.id]||[];
-    const icons=[c.hasEmail,c.hasJC,c.hasEDR].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️'][i]}</span>`).join('');
+    const icons=[c.hasEmail,c.hasJC,c.hasEDR,c.hasZS].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️','🔒'][i]}</span>`).join('');
     return `<div class="co-card ${activeId===c.id?'active':''}" onclick="selectCompany('${c.id}')">
       <div class="cdel" onclick="event.stopPropagation();deleteCompany('${c.id}')">✕</div>
       <div class="cn">${c.name}</div>
@@ -304,6 +306,7 @@ function getSlots(c){
   if(c.hasEmail)sl.push({key:'email',label:'Email Active Users',icon:'📧',desc:'CSV: user_name, user_email'});
   if(c.hasJC){sl.push({key:'jcUsers',label:'JumpCloud Users',icon:'👤',desc:'JC Users CSV'});sl.push({key:'jcDevices',label:'JC Devices',icon:'💻',desc:'JC Devices CSV'});sl.push({key:'userDevice',label:'Users ↔ Devices',icon:'🔗',desc:'JC mapping CSV'});}
   if(c.hasEDR)sl.push({key:'edr',label:'EDR / Checkpoint',icon:'🛡️',desc:'XLSX or CSV'});
+  if(c.hasZS)sl.push({key:'zscaler',label:'Zscaler Device Export',icon:'🔒',desc:'Device Export CSV'});
   return sl;
 }
 function renderSlot(s){
@@ -341,6 +344,7 @@ async function runAnalysis(){
     if(uploadedFiles.jcDevices)data.jcDevices=await rCSV(uploadedFiles.jcDevices);
     if(uploadedFiles.userDevice)data.userDevice=await rCSV(uploadedFiles.userDevice);
     if(uploadedFiles.edr){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
+    if(uploadedFiles.zscaler)data.zscaler=await rCSV(uploadedFiles.zscaler);
     sp(50);
     const result=analyze(data,c);sp(80);
     currentReport=result;
@@ -443,10 +447,73 @@ function analyze(data,company){
     result.tables.noEDR={title:'JC No EDR',rows:rows.filter(r=>r._noEDR).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],User:r['Mapped User'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],_key:r._key})),cols:['Display Name','Hostname','User','Last Seen','Days Offline']};
     result.tables.edrNotInJC={title:'EDR Not in JC',rows:edrOnly.map(r=>({'Hostname (EDR)':r['Hostname'],'Last EDR Seen':r['Last Seen'],_key:r._key})),cols:['Hostname (EDR)','Last EDR Seen']};
   }
+
+  // ── ZSCALER ANALYSIS ─────────────────────────────────────────
+  if(data.zscaler&&data.zscaler.length){
+    const zsRaw=data.zscaler.map(r=>({
+      email:norm(r['User']||''),
+      deviceState:(r['Device State']||'').trim(),
+      hostname:(r['Hostname']||'').trim(),
+      regTime:r['Registration TimeStamp']||'',
+      deregTime:r['Last Deregistration TimeStamp']||'',
+      lastSeen:r['Last Seen Connected to ZIA']||r['Last Seen with Client Connector Active']||'',
+      zccVersion:r['Zscaler Client Connector Version']||'',
+      deviceModel:r['Device model']||'',
+      serialNo:r['SerialNumber']||''
+    })).filter(r=>r.email);
+
+    // Dedup: for each email, pick best entry
+    // Priority: Registered(3) > Unregistered(2) > Remove pending(1)
+    // Within same priority: latest Registration TimeStamp wins
+    const statePri={'Registered':3,'Unregistered':2,'Remove pending':1};
+    const zsByEmail={};
+    zsRaw.forEach(r=>{if(!zsByEmail[r.email])zsByEmail[r.email]=[];zsByEmail[r.email].push(r);});
+
+    const zsUsers=Object.entries(zsByEmail).map(([email,entries])=>{
+      entries.sort((a,b)=>{
+        const pd=(statePri[b.deviceState]||0)-(statePri[a.deviceState]||0);
+        if(pd!==0)return pd;
+        return (b.regTime?new Date(b.regTime).getTime():0)-(a.regTime?new Date(a.regTime).getTime():0);
+      });
+      const best=entries[0];
+      const allStates=[...new Set(entries.map(e=>e.deviceState))].join(' + ');
+      return {email,effectiveState:best.deviceState,hostname:best.hostname,
+        lastSeen:best.lastSeen,regTime:best.regTime,deregTime:best.deregTime,
+        zccVersion:best.zccVersion,deviceModel:best.deviceModel,
+        allStates,totalEntries:entries.length,_key:email};
+    });
+
+    // Email users vs Zscaler
+    const zsRows=emailUsers.map(u=>{
+      const zs=zsUsers.find(z=>z.email===u.email);
+      if(!zs)return{Name:u.name,Email:u.email,'ZS Status':'❌ Not Found','Effective State':'Not Found','Hostname':'N/A','Last Seen ZIA':'N/A','ZCC Version':'N/A','All States':'N/A',_noZS:true,_key:u.email};
+      const icon=zs.effectiveState==='Registered'?'✅':zs.effectiveState==='Unregistered'?'🟡':'🟠';
+      return{Name:u.name,Email:u.email,'ZS Status':`${icon} ${zs.effectiveState}`,'Effective State':zs.effectiveState,
+        'Hostname':zs.hostname,'Last Seen ZIA':zs.lastSeen?zs.lastSeen.substring(0,16):'N/A',
+        'ZCC Version':zs.zccVersion,'All States':zs.allStates,_noZS:false,_key:u.email};
+    });
+
+    result.tables.zsStatus={title:'Zscaler Status',rows:zsRows,cols:['Name','Email','ZS Status','Hostname','Last Seen ZIA','ZCC Version','All States']};
+
+    const notInZS=zsRows.filter(r=>r._noZS);
+    if(notInZS.length)result.tables.notInZS={title:'No Zscaler (Email Active)',rows:notInZS.map(r=>({Name:r.Name,Email:r.Email,Status:'Not in Zscaler',_key:r._key})),cols:['Name','Email','Status']};
+
+    const zsProb=zsRows.filter(r=>!r._noZS&&r['Effective State']!=='Registered');
+    if(zsProb.length)result.tables.zsProblematic={title:'ZS — Unregistered / Remove Pending',rows:zsProb.map(r=>({Name:r.Name,Email:r.Email,'Status':r['ZS Status'],'All States':r['All States'],'Last Seen':r['Last Seen ZIA'],_key:r._key})),cols:['Name','Email','Status','All States','Last Seen']};
+
+    result.stats.zsTotal=zsUsers.length;
+    result.stats.zsRegistered=zsRows.filter(r=>r['Effective State']==='Registered').length;
+    result.stats.zsUnregistered=zsRows.filter(r=>r['Effective State']==='Unregistered').length;
+    result.stats.zsRemovePending=zsRows.filter(r=>r['Effective State']==='Remove pending').length;
+    result.stats.zsNotFound=notInZS.length;
+
+    if(notInZS.length>0)result.alerts.push({type:'warning',text:`${notInZS.length} email users not in Zscaler`,sub:notInZS.slice(0,3).map(r=>r.Email).join(', ')+(notInZS.length>3?'...':'')});
+    if(result.stats.zsUnregistered>0)result.alerts.push({type:'info',text:`${result.stats.zsUnregistered} Zscaler users Unregistered (logged out)`,sub:''});
+    if(result.stats.zsRemovePending>0)result.alerts.push({type:'info',text:`${result.stats.zsRemovePending} Zscaler users Remove Pending`,sub:''});
+  }
+
   return result;
 }
-
-// ─── HISTORY / DIFF ───────────────────────────────────────────
 function toggleCompare(idx){
   const h=history[activeId]||[];const e=h[idx];
   compareWith=(compareWith&&compareWith.date===e.date)?null:e;
@@ -549,6 +616,8 @@ function renderDashboard(result,c){
     s.edrNotInJC!==undefined?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
     s.offlineGT7!==undefined?mkCard(s.offlineGT7>0?'cy':'cg',s.offlineGT7,'Offline >7 Days',`${s.offlineGT30||0} offline >30d`,'offlineGT7',true):'',
     s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
+    s.zsRegistered!==undefined?mkCard(s.zsNotFound>0?'co':'cg',s.zsRegistered,'ZS Registered',`${s.zsUnregistered||0} unregistered`,'zsRegistered',false):'',
+    s.zsNotFound!==undefined&&s.zsNotFound>0?mkCard('cr',s.zsNotFound,'No Zscaler','Not in ZS','zsNotFound',true):'',
   ].filter(Boolean);
 
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
