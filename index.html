@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecureView — IT Security Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0a0e1a; --surface:#111827; --surface2:#1a2234; --surface3:#202d42;
+  --border:#1e2d45; --border2:#263650;
+  --accent:#00d4ff; --accent3:#7c3aed;
+  --green:#10b981; --red:#ef4444; --yellow:#f59e0b; --orange:#f97316;
+  --text:#e2e8f0; --muted:#64748b;
+  --new:#22d3ee; --gone:#f87171; --changed:#fbbf24;
+  --font-mono:'Space Mono',monospace; --font-sans:'DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:0.25;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:28px 20px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
+.logo{display:flex;align-items:center;gap:14px}
+.logo-icon{width:46px;height:46px;background:linear-gradient(135deg,var(--accent),var(--accent3));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 30px rgba(0,212,255,0.25)}
+.logo h1{font-family:var(--font-mono);font-size:18px;color:var(--accent)}
+.logo p{font-size:12px;color:var(--muted);margin-top:2px}
+.live-badge{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-family:var(--font-mono);font-size:10px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.live-badge::before{content:'●';color:var(--green);animation:blink 2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.slabel{font-family:var(--font-mono);font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.slabel::after{content:'';flex:1;height:1px;background:linear-gradient(to right,var(--border),transparent)}
+.co-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-bottom:10px}
+.co-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:13px;cursor:pointer;transition:.2s;position:relative}
+.co-card:hover{border-color:var(--accent);background:var(--surface2)}
+.co-card.active{border-color:var(--accent);background:rgba(0,212,255,.05);box-shadow:0 0 20px rgba(0,212,255,.1)}
+.co-card .cn{font-weight:600;font-size:13px;color:var(--text);margin-bottom:4px}
+.co-card .cdel{position:absolute;top:7px;right:7px;width:19px;height:19px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:var(--red);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:.2s}
+.co-card:hover .cdel{opacity:1}
+.add-co{background:transparent;border:1px dashed var(--border);border-radius:10px;padding:13px;cursor:pointer;color:var(--muted);font-size:12px;font-family:var(--font-sans);transition:.2s;display:flex;align-items:center;justify-content:center;gap:7px}
+.add-co:hover{border-color:var(--accent);color:var(--accent)}
+.mo-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.mo-overlay.open{display:flex}
+.mo{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:460px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.mo h3{font-family:var(--font-mono);font-size:15px;color:var(--accent);margin-bottom:18px}
+.mf{margin-bottom:14px}
+.mf label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px}
+.mf input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;transition:.2s}
+.mf input:focus{border-color:var(--accent)}
+.tg-grp{display:flex;flex-direction:column;gap:7px}
+.tg-item{display:flex;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 13px}
+.tg-item label{font-size:12px;color:var(--text)}
+.tgl{position:relative;width:38px;height:20px}
+.tgl input{opacity:0;width:0;height:0}
+.tgl-s{position:absolute;inset:0;background:var(--border);border-radius:20px;cursor:pointer;transition:.3s}
+.tgl-s::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+.tgl input:checked+.tgl-s{background:var(--accent)}
+.tgl input:checked+.tgl-s::before{transform:translateX(18px)}
+.mo-acts{display:flex;gap:9px;margin-top:22px}
+.btn{padding:9px 18px;border-radius:8px;font-family:var(--font-sans);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:.2s}
+.btn-p{background:var(--accent);color:#000}.btn-p:hover{background:#00b8e0;box-shadow:0 0 20px rgba(0,212,255,.3)}
+.btn-s{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}.btn-s:hover{color:var(--text)}
+.up-section{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;margin-top:22px}
+.up-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px}
+.up-slot{border:1.5px dashed var(--border);border-radius:9px;padding:13px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+.up-slot:hover{border-color:var(--accent);background:rgba(0,212,255,.03)}
+.up-slot.filled{border-style:solid;border-color:var(--green);background:rgba(16,185,129,.05)}
+.si{font-size:20px;margin-bottom:6px}.st{font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px}.sd{font-size:10px;color:var(--muted)}
+.sf{font-size:10px;color:var(--green);margin-top:4px;font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb{position:absolute;top:6px;right:6px;font-size:8px;padding:1px 5px;border-radius:3px;font-family:var(--font-mono);font-weight:700;background:rgba(100,116,139,.2);color:var(--muted)}
+.sc2{position:absolute;bottom:6px;right:6px;width:16px;height:16px;background:rgba(239,68,68,.2);border-radius:3px;display:none;align-items:center;justify-content:center;font-size:9px;color:var(--red);cursor:pointer}
+.up-slot.filled .sc2{display:flex}
+input[type=file]{display:none}
+.run-btn{width:100%;padding:14px;background:linear-gradient(135deg,var(--accent),var(--accent3));border:none;border-radius:11px;color:#fff;font-family:var(--font-mono);font-size:14px;font-weight:700;cursor:pointer;letter-spacing:1px;transition:.3s;margin-top:16px;position:relative;overflow:hidden}
+.run-btn:hover:not(:disabled){box-shadow:0 0 40px rgba(0,212,255,.35);transform:translateY(-1px)}
+.run-btn:disabled{opacity:.4;cursor:not-allowed}
+.prog{height:3px;background:var(--border);border-radius:3px;margin-top:10px;overflow:hidden;display:none}
+.prog.show{display:block}
+.prog-f{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent3));width:0;transition:width .4s;border-radius:3px}
+.tabs{display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:4px;margin-bottom:16px;overflow-x:auto}
+.tab{padding:7px 14px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap;transition:.2s;border:none;background:transparent;font-family:var(--font-sans)}
+.tab:hover{color:var(--text)}
+.tab.active{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+@media(max-width:900px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:15px;position:relative;overflow:hidden;transition:.2s}
+.sc:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.sc.cb::before{background:var(--accent)}.sc.cg::before{background:var(--green)}.sc.cr::before{background:var(--red)}.sc.co::before{background:var(--orange)}.sc.cy::before{background:var(--yellow)}.sc.cp::before{background:var(--accent3)}
+.sn{font-family:var(--font-mono);font-size:30px;font-weight:700;line-height:1;margin-bottom:3px}
+.sc.cb .sn{color:var(--accent)}.sc.cg .sn{color:var(--green)}.sc.cr .sn{color:var(--red)}.sc.co .sn{color:var(--orange)}.sc.cy .sn{color:var(--yellow)}.sc.cp .sn{color:var(--accent3)}
+.sl2{font-size:11px;color:var(--muted);font-weight:500}.ss{font-size:10px;color:var(--muted);margin-top:5px;font-family:var(--font-mono)}
+.diff-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:20px;font-size:9px;font-weight:700;font-family:var(--font-mono);margin-top:5px}
+.dp-up{background:rgba(239,68,68,.15);color:var(--red)}.dp-dn{background:rgba(16,185,129,.15);color:var(--green)}.dp-sm{background:rgba(100,116,139,.15);color:var(--muted)}
+.tw{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden}
+.th2{padding:11px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:7px}
+.th2 h3{font-size:12px;font-weight:600;color:var(--text)}
+.tc{font-family:var(--font-mono);font-size:9px;background:var(--surface2);border:1px solid var(--border);padding:2px 7px;border-radius:4px;color:var(--muted)}
+.si2{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text);font-size:11px;outline:none;width:170px;font-family:var(--font-sans)}
+.si2:focus{border-color:var(--accent)}
+.ts{overflow-x:auto;max-height:460px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;min-width:600px}
+thead{position:sticky;top:0;z-index:2}
+th{background:var(--surface2);padding:8px 12px;text-align:left;font-size:9px;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:8px 12px;font-size:12px;border-bottom:1px solid rgba(30,45,69,.5);color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.bdg{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--font-mono);white-space:nowrap}
+.bg{background:rgba(16,185,129,.15);color:#10b981}.br{background:rgba(239,68,68,.15);color:#ef4444}
+.by{background:rgba(245,158,11,.15);color:#f59e0b}.bo{background:rgba(249,115,22,.15);color:#f97316}
+.bb{background:rgba(0,212,255,.15);color:#00d4ff}.bm{background:rgba(100,116,139,.15);color:#64748b}
+.row-new td{background:rgba(34,211,238,.04)!important}.row-new td:first-child{border-left:3px solid var(--new)}
+.row-gone td{background:rgba(248,113,113,.04)!important;opacity:.6}.row-gone td:first-child{border-left:3px solid var(--gone)}
+.dtag{font-size:9px;padding:2px 5px;border-radius:3px;font-family:var(--font-mono);font-weight:700;display:inline-block}
+.dt-n{background:rgba(34,211,238,.15);color:var(--new)}.dt-g{background:rgba(248,113,113,.15);color:var(--gone)}
+.dt-b{background:rgba(16,185,129,.15);color:var(--green)}.dt-w{background:rgba(239,68,68,.15);color:var(--red)}.dt-s{background:rgba(100,116,139,.15);color:var(--muted)}
+.ex-bar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 16px;margin-bottom:16px;flex-wrap:wrap;gap:9px}
+.ex-info{font-size:12px;color:var(--muted)}.ex-info strong{color:var(--text)}
+.ex-btns{display:flex;gap:7px;flex-wrap:wrap}
+.ex-btn{display:flex;align-items:center;gap:5px;padding:7px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:var(--font-sans);transition:.2s}
+.ex-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.ex-btn:disabled{opacity:.35;cursor:not-allowed}
+.ex-btn.ep{background:var(--accent);color:#000;border-color:var(--accent)}.ex-btn.ep:hover{box-shadow:0 0 20px rgba(0,212,255,.3)}
+.al-list{display:flex;flex-direction:column;gap:6px;margin-bottom:18px}
+.al{display:flex;align-items:flex-start;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:10px 13px;border-left:3px solid}
+.al.crit{border-left-color:var(--red)}.al.warn{border-left-color:var(--yellow)}.al.info{border-left-color:var(--accent)}
+.al-t{font-size:12px;color:var(--text)}.al-s{font-size:10px;color:var(--muted);margin-top:2px;font-family:var(--font-mono)}
+/* History */
+.hist-bar{background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:14px 16px;margin-bottom:18px}
+.hist-bar h4{font-family:var(--font-mono);font-size:10px;color:var(--accent);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.hist-list{display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto}
+.hist-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 11px;font-size:11px;cursor:pointer;transition:.2s}
+.hist-item:hover{border-color:var(--accent)}.hist-item.sel{border-color:var(--accent);background:rgba(0,212,255,.05)}
+.hd{font-family:var(--font-mono);color:var(--accent);font-size:10px}
+.hs{display:flex;gap:9px}.hss{font-size:10px;color:var(--muted)}
+.hdel{width:17px;height:17px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.25);border-radius:3px;color:var(--red);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+/* Diff section */
+.diff-sec{background:var(--surface);border:1px solid var(--border2);border-radius:11px;padding:16px;margin-bottom:18px}
+.diff-sec h3{font-family:var(--font-mono);font-size:11px;color:var(--accent);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px}
+.diff-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:9px;margin-bottom:14px}
+.diff-card{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:12px}
+.dc-lbl{font-size:9px;color:var(--muted);font-family:var(--font-mono);margin-bottom:5px;text-transform:uppercase}
+.dc-vals{display:flex;align-items:center;gap:7px}
+.dc-old{font-family:var(--font-mono);font-size:16px;color:var(--muted);text-decoration:line-through}
+.dc-arr{font-size:12px;color:var(--muted)}
+.dc-new{font-family:var(--font-mono);font-size:22px;font-weight:700}
+.dc-new.good{color:var(--green)}.dc-new.bad{color:var(--red)}.dc-new.neut{color:var(--accent)}
+.diff-legend{display:flex;gap:10px;font-size:9px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.dl-i{display:flex;align-items:center;gap:4px}
+.dl-d{width:7px;height:7px;border-radius:50%}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--surface);border:1px solid var(--green);border-radius:9px;padding:10px 16px;font-size:12px;color:var(--green);z-index:999;display:none;box-shadow:0 4px 30px rgba(0,0,0,.4);font-family:var(--font-mono)}
+.toast.show{display:block;animation:sup .3s}
+@keyframes sup{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+.empty-s{text-align:center;padding:40px 20px;color:var(--muted)}
+.no-co{text-align:center;padding:60px 20px;margin-top:28px}
+.no-co .bi{font-size:50px;margin-bottom:12px}
+.no-co h2{font-size:17px;color:var(--text);margin-bottom:6px}
+.no-co p{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🛡️</div>
+    <div><h1>SecureView</h1><p>IT Security Report Generator — Multi-Company</p></div>
+  </div>
+  <div class="live-badge">WEEKLY REPORT TOOL v2 — WITH HISTORY &amp; DIFF</div>
+</div>
+
+<!-- Google Drive Sync Bar -->
+<div id="driveBar" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 16px;margin-bottom:18px;"></div>
+
+<div class="slabel">Companies</div>
+<div class="co-grid" id="coGrid"></div>
+<div id="mainContent"></div>
+</div><!-- /.app -->
+
+<div class="mo-overlay" id="addModal">
+  <div class="mo">
+    <h3>// ADD COMPANY</h3>
+    <div class="mf"><label>Company Name</label><input id="coName" placeholder="e.g. Acme Corp"/></div>
+    <div class="mf"><label>Data Sources</label>
+      <div class="tg-grp">
+        <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="hEmail" checked><span class="tgl-s"></span></label></div>
+        <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="hJC" checked><span class="tgl-s"></span></label></div>
+        <div class="tg-item"><label>🛡️ EDR / Checkpoint</label><label class="tgl"><input type="checkbox" id="hEDR" checked><span class="tgl-s"></span></label></div>
+      </div>
+    </div>
+    <div class="mo-acts">
+      <button class="btn btn-p" onclick="saveCompany()">Add</button>
+      <button class="btn btn-s" onclick="document.getElementById('addModal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────
+const LS_CO='sv_co_v2', LS_HI='sv_hi_v2';
+let companies=JSON.parse(localStorage.getItem(LS_CO)||'[]');
+let history=JSON.parse(localStorage.getItem(LS_HI)||'{}');
+let activeId=null, currentReport=null, uploadedFiles={}, compareWith=null;
+
+function saveCo(){localStorage.setItem(LS_CO,JSON.stringify(companies));}
+function saveHi(){
+  Object.keys(history).forEach(id=>{if(history[id].length>12)history[id]=history[id].slice(-12);});
+  localStorage.setItem(LS_HI,JSON.stringify(history));
+}
+function getCo(id){return companies.find(c=>c.id===id);}
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+
+// ─── COMPANIES ────────────────────────────────────────────────
+function openAddCompany(){
+  document.getElementById('coName').value='';
+  ['hEmail','hJC','hEDR'].forEach(x=>document.getElementById(x).checked=true);
+  document.getElementById('addModal').classList.add('open');
+}
+function saveCompany(){
+  const name=document.getElementById('coName').value.trim();
+  if(!name)return alert('Enter company name');
+  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked});
+  saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
+}
+function deleteCompany(id){
+  if(!confirm('Delete company + all history?'))return;
+  companies=companies.filter(c=>c.id!==id);delete history[id];saveCo();saveHi();
+  if(activeId===id){activeId=null;currentReport=null;}renderCo();renderMain();
+}
+function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compareWith=null;renderCo();renderMain();}
+
+function renderCo(){
+  document.getElementById('coGrid').innerHTML=companies.map(c=>{
+    const h=history[c.id]||[];
+    const icons=[c.hasEmail,c.hasJC,c.hasEDR].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️'][i]}</span>`).join('');
+    return `<div class="co-card ${activeId===c.id?'active':''}" onclick="selectCompany('${c.id}')">
+      <div class="cdel" onclick="event.stopPropagation();deleteCompany('${c.id}')">✕</div>
+      <div class="cn">${c.name}</div>
+      <div style="display:flex;gap:5px;margin-top:4px">${icons}</div>
+      ${h.length?`<div style="font-size:9px;color:var(--green);margin-top:4px;font-family:monospace">● ${h.length} report${h.length>1?'s':''} saved</div>`:''}
+    </div>`;
+  }).join('')+`<button class="add-co" onclick="openAddCompany()">+ Add Company</button>`;
+}
+
+// ─── MAIN CONTENT ─────────────────────────────────────────────
+function renderMain(){
+  const el=document.getElementById('mainContent');
+  if(!activeId){el.innerHTML=`<div class="no-co"><div class="bi">🏢</div><h2>No Company Selected</h2><p>Add or select a company above</p></div>`;return;}
+  const c=getCo(activeId);if(!c)return;
+  const slots=getSlots(c);
+  const hist=history[activeId]||[];
+
+  // History section
+  let histHtml='';
+  if(hist.length){
+    histHtml=`<div class="hist-bar">
+      <h4>📅 Report History — ${c.name} (${hist.length} saved, max 12)</h4>
+      <div class="hist-list">${hist.slice().reverse().map((h,ri)=>{
+        const realIdx=hist.length-1-ri;
+        const d=new Date(h.date);
+        const lbl=d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+        const sel=compareWith&&compareWith.date===h.date;
+        const s=h.stats||{};
+        return `<div class="hist-item ${sel?'sel':''}" onclick="toggleCompare(${realIdx})">
+          <div>
+            <div class="hd">${lbl}</div>
+            <div class="hs">
+              ${s.totalEmailUsers!==undefined?`<span class="hss">👥 ${s.totalEmailUsers}</span>`:''}
+              ${s.totalDevices!==undefined?`<span class="hss">💻 ${s.totalDevices}</span>`:''}
+              ${s.devicesNoEDR!==undefined?`<span class="hss" style="color:${s.devicesNoEDR>0?'var(--red)':'var(--green)'}">🛡️ ${s.devicesNoEDR} no-EDR</span>`:''}
+              ${s.usersNotInJC!==undefined?`<span class="hss" style="color:${s.usersNotInJC>0?'var(--orange)':'var(--green)'}">⚠️ ${s.usersNotInJC} not-JC</span>`:''}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:7px">
+            <span style="font-size:9px;color:${sel?'var(--accent)':'var(--muted)'};font-family:monospace">${sel?'● COMPARING':'click to compare'}</span>
+            <div class="hdel" onclick="event.stopPropagation();delHist(${realIdx})">✕</div>
+          </div>
+        </div>`;
+      }).join('')}</div>
+      <div style="margin-top:7px;font-size:9px;color:var(--muted)">💡 Click history entry to compare with current report. Shown as colored diff in tables & stat cards.</div>
+    </div>`;
+  }
+
+  el.innerHTML=`
+    ${histHtml}
+    <div class="up-section">
+      <div class="slabel">Upload Files — ${c.name}</div>
+      <div class="up-grid" id="upGrid">${slots.map(renderSlot).join('')}</div>
+      <div class="prog" id="prog"><div class="prog-f" id="progF"></div></div>
+      <button class="run-btn" id="runBtn" onclick="runAnalysis()">▶ GENERATE &amp; SAVE REPORT</button>
+    </div>
+    <div id="dash" style="${currentReport?'':'display:none'}">
+      ${currentReport?renderDashboard(currentReport,c):''}
+    </div>`;
+
+  slots.forEach(s=>{const e=document.getElementById('slot_'+s.key);if(e)e.onclick=()=>pickFile(s.key);});
+  if(currentReport){setTimeout(()=>{const ft=document.querySelector('.tab');if(ft&&!document.querySelector('.tab.active'))ft.click();},50);}
+}
+
+function getSlots(c){
+  const sl=[];
+  if(c.hasEmail)sl.push({key:'email',label:'Email Active Users',icon:'📧',desc:'CSV: user_name, user_email'});
+  if(c.hasJC){sl.push({key:'jcUsers',label:'JumpCloud Users',icon:'👤',desc:'JC Users CSV'});sl.push({key:'jcDevices',label:'JC Devices',icon:'💻',desc:'JC Devices CSV'});sl.push({key:'userDevice',label:'Users ↔ Devices',icon:'🔗',desc:'JC mapping CSV'});}
+  if(c.hasEDR)sl.push({key:'edr',label:'EDR / Checkpoint',icon:'🛡️',desc:'XLSX or CSV'});
+  return sl;
+}
+function renderSlot(s){
+  const f=uploadedFiles[s.key];
+  return `<div class="up-slot ${f?'filled':''}" id="slot_${s.key}">
+    <span class="sb">OPT</span><div class="si">${s.icon}</div>
+    <div class="st">${s.label}</div><div class="sd">${s.desc}</div>
+    ${f?`<div class="sf">✓ ${f.name}</div><div class="sc2" onclick="clearFile(event,'${s.key}')">✕</div>`:''}
+  </div>`;
+}
+function pickFile(key){const i=document.createElement('input');i.type='file';i.accept=key==='edr'?'.xlsx,.xls,.csv':'.csv';i.onchange=e=>{if(e.target.files[0]){uploadedFiles[key]=e.target.files[0];renderMain();}};i.click();}
+function clearFile(e,key){e.stopPropagation();delete uploadedFiles[key];renderMain();}
+
+// ─── ANALYSIS ─────────────────────────────────────────────────
+async function runAnalysis(){
+  const c=getCo(activeId);
+  const btn=document.getElementById('runBtn');btn.disabled=true;btn.textContent='⏳ ANALYZING...';
+  const pb=document.getElementById('prog');pb.classList.add('show');
+  const pf=document.getElementById('progF');const sp=v=>{pf.style.width=v+'%'};
+  try{
+    sp(10);
+    const data={};
+    const rCSV=file=>new Promise((res,rej)=>{
+      const r=new FileReader();r.onload=e=>{
+        const lines=e.target.result.split(/\r?\n/).filter(Boolean);if(!lines.length){res([]);return;}
+        const hdrs=lines[0].split(',').map(h=>h.trim().replace(/^"|"$/g,''));
+        res(lines.slice(1).map(l=>{const v=scsv(l);const o={};hdrs.forEach((h,i)=>{o[h]=(v[i]||'').trim().replace(/^"|"$/g,'');});return o;}).filter(r=>Object.values(r).some(v=>v)));
+      };r.onerror=rej;r.readAsText(file);
+    });
+    const rXLSX=file=>new Promise((res,rej)=>{
+      const r=new FileReader();r.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];res(XLSX.utils.sheet_to_json(ws,{defval:''}));};r.onerror=rej;r.readAsArrayBuffer(file);
+    });
+    if(uploadedFiles.email)data.email=await rCSV(uploadedFiles.email);
+    if(uploadedFiles.jcUsers)data.jcUsers=await rCSV(uploadedFiles.jcUsers);
+    if(uploadedFiles.jcDevices)data.jcDevices=await rCSV(uploadedFiles.jcDevices);
+    if(uploadedFiles.userDevice)data.userDevice=await rCSV(uploadedFiles.userDevice);
+    if(uploadedFiles.edr){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
+    sp(50);
+    const result=analyze(data,c);sp(80);
+    currentReport=result;
+    // Save to history (replace same-day)
+    if(!history[activeId])history[activeId]=[];
+    const today=new Date().toDateString();
+    history[activeId]=history[activeId].filter(h=>new Date(h.date).toDateString()!==today);
+    history[activeId].push({date:result.generatedAt,stats:result.stats,tables:result.tables,company:result.company});
+    saveHi();sp(100);
+    // Auto-save to Google Drive if enabled
+    if(driveEnabled) driveSaveHistory(activeId);
+    setTimeout(()=>{pb.classList.remove('show');pf.style.width='0';btn.textContent='▶ GENERATE & SAVE REPORT';btn.disabled=false;renderCo();renderMain();showToast('✅ Report Generated & Saved!');
+      // Auto-save to Drive
+      if(driveEnabled) driveSaveHistory(activeId);
+    },500);
+  }catch(err){alert('Error: '+err.message);console.error(err);btn.textContent='▶ GENERATE & SAVE REPORT';btn.disabled=false;pb.classList.remove('show');}
+}
+
+function scsv(l){const r=[];let c='',q=false;for(let i=0;i<l.length;i++){if(l[i]==='"')q=!q;else if(l[i]===','&&!q){r.push(c);c='';}else c+=l[i];}r.push(c);return r;}
+
+function analyze(data,company){
+  const now=new Date();
+  const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
+  const norm=s=>(s||'').toString().trim().toLowerCase();
+  const normD=s=>(s||'').toString().trim().toUpperCase();
+
+  const emailUsers=(data.email||[]).map(r=>({name:r['user_name']||r['name']||r['Name']||'',email:norm(r['user_email']||r['email']||r['Email']||'')})).filter(r=>r.email);
+  const jcUsers=(data.jcUsers||[]).map(r=>({email:norm(r['email']||''),username:norm(r['username']||''),state:r['state']||''})).filter(r=>r.email||r.username);
+  const jcDevices=(data.jcDevices||[]).map(r=>{
+    const lc=r['lastContact']||r['last_contact']||'';let dOff=null;
+    if(lc){try{dOff=Math.floor((now-new Date(lc))/86400000);}catch(e){}}
+    // hostname = actual machine hostname (used for matching EDR/user-device)
+    // displayName = friendly name shown in UI
+    const hostname=normD(r['hostname']||r['displayName']||r['name']||'');
+    const displayName=r['displayName']||r['hostname']||r['name']||'';
+    return {hostname, name:hostname, displayName, os:r['os']||r['osFamily']||'',lastContact:lc,daysOffline:dOff};
+  }).filter(r=>r.hostname);
+  // user-device map: use device.hostname for matching (not display_name)
+  const udMap=(data.userDevice||[]).map(r=>({
+    device:normD(r['device.hostname']||r['device.display_name']||r['device_name']||''),
+    username:norm(r['user.username']||r['username']||'')
+  })).filter(r=>r.device);
+  // EDR: Computer Name is the hostname
+  const edrDevs=(data.edr||[]).map(r=>({name:normD(r['Computer Name']||r['computer_name']||r['hostname']||r['name']||''),lastConn:r['Last Connection']||r['last_connection']||'',version:r['Endpoint Version']||r['version']||''})).filter(r=>r.name);
+
+  const jcEmailSet=new Set(jcUsers.map(u=>u.email));
+  const jcDevSet=new Set(jcDevices.map(d=>d.hostname)); // hostname-based set
+  const edrSet=new Set(edrDevs.map(d=>d.name));         // EDR Computer Name = hostname
+  const mappedSet=new Set(udMap.map(u=>u.device));       // device.hostname based
+
+  if(emailUsers.length){
+    const rows=emailUsers.map(u=>{
+      const inJC=jcEmailSet.has(u.email);let devs=[],cnt=0;
+      if(inJC&&data.jcUsers&&data.userDevice){const ju=jcUsers.find(j=>j.email===u.email);if(ju){const ud=udMap.filter(m=>m.username===ju.username);devs=ud.map(m=>m.device);cnt=devs.length;}}
+      return {Name:u.name,Email:u.email,'In JumpCloud':inJC?'✅ Yes':'❌ No','Mapped Devices':devs.join(', ')||(inJC?'None':'N/A'),'Device Count':cnt,_alert:!inJC,_key:u.email};
+    });
+    result.tables.emailStatus={title:'Email User Status',rows,cols:['Name','Email','In JumpCloud','Mapped Devices','Device Count']};
+    const notIn=rows.filter(r=>r._alert);
+    result.stats.totalEmailUsers=emailUsers.length;result.stats.usersNotInJC=notIn.length;result.stats.usersInJC=emailUsers.length-notIn.length;
+    if(notIn.length)result.alerts.push({type:'critical',text:`${notIn.length} email users not in JumpCloud`,sub:notIn.slice(0,3).map(r=>r.Email).join(', ')+(notIn.length>3?'...':'')});
+    result.tables.notInJC={title:'Users Not In JumpCloud',rows:notIn.map(r=>({Name:r.Name,Email:r.Email,Status:'Email Active — No JC Account',_key:r._key})),cols:['Name','Email','Status']};
+  }
+
+  if(jcDevices.length){
+    const rows=jcDevices.map(d=>{
+      // Match using hostname (not displayName)
+      const users=udMap.filter(m=>m.device===d.hostname).map(m=>m.username);
+      const hasEDR=edrSet.has(d.hostname);
+      const isMapped=mappedSet.has(d.hostname);
+      const day=d.daysOffline;let offLbl='Unknown';
+      if(day!==null){if(day===0)offLbl='🟢 Online Today';else if(day<=7)offLbl=`🟡 ${day}d`;else if(day<=30)offLbl=`🟠 ${day}d`;else offLbl=`🔴 ${day}d`;}
+      return {
+        'Display Name':d.displayName,
+        'Hostname':d.hostname,  // actual hostname used for matching
+        'Mapped User':users.join(', ')||'⚠️ No User',
+        'In JC':'✅','EDR':hasEDR?'✅ Yes':'❌ No',
+        'Last Seen':d.lastContact?d.lastContact.substring(0,10):'N/A',
+        'Days Offline':day!==null?day:'N/A','Status':offLbl,OS:d.os,
+        _noUser:!isMapped,_noEDR:!hasEDR,_off30:day!==null&&day>30,_key:d.hostname
+      };
+    });
+    const edrOnly=edrDevs.filter(d=>!jcDevSet.has(d.name)).map(d=>({
+      'Display Name':d.name,'Hostname':d.name,
+      'Mapped User':'N/A','In JC':'❌ No','EDR':'✅ Yes',
+      'Last Seen':String(d.lastConn).substring(0,10)||'N/A','Days Offline':'N/A',
+      'Status':'🟠 Not in JC',OS:'N/A',_notInJC:true,_key:d.name
+    }));
+    result.tables.deviceStatus={title:'All Devices',rows:[...rows,...edrOnly],cols:['Display Name','Hostname','Mapped User','In JC','EDR','Last Seen','Days Offline','Status','OS']};
+    result.stats.totalDevices=jcDevices.length;result.stats.devicesWithUser=rows.filter(r=>!r._noUser).length;result.stats.devicesNoUser=rows.filter(r=>r._noUser).length;
+    result.stats.devicesWithEDR=rows.filter(r=>!r._noEDR).length;result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
+    result.stats.edrNotInJC=edrOnly.length;
+    result.stats.offlineGT7=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>7).length;
+    result.stats.offlineGT30=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>30).length;
+    result.stats.onlineToday=rows.filter(r=>r['Days Offline']===0).length;
+    if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Device Name']).join(', ')});
+    if(result.stats.edrNotInJC>0)result.alerts.push({type:'warning',text:`${result.stats.edrNotInJC} EDR devices not in JumpCloud`,sub:edrOnly.map(r=>r['Device Name']).join(', ')});
+    if(result.stats.offlineGT30>0)result.alerts.push({type:'critical',text:`${result.stats.offlineGT30} devices offline >30 days`,sub:rows.filter(r=>r._off30).map(r=>r['Device Name']+'('+r['Days Offline']+'d)').join(', ')});
+    if(result.stats.offlineGT7>0)result.alerts.push({type:'warning',text:`${result.stats.offlineGT7} devices offline >7 days`,sub:''});
+    if(result.stats.devicesNoUser>0)result.alerts.push({type:'info',text:`${result.stats.devicesNoUser} devices not mapped to any user`,sub:''});
+    result.tables.noEDR={title:'JC No EDR',rows:rows.filter(r=>r._noEDR).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],User:r['Mapped User'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],_key:r._key})),cols:['Display Name','Hostname','User','Last Seen','Days Offline']};
+    result.tables.edrNotInJC={title:'EDR Not in JC',rows:edrOnly.map(r=>({'Hostname (EDR)':r['Hostname'],'Last EDR Seen':r['Last Seen'],_key:r._key})),cols:['Hostname (EDR)','Last EDR Seen']};
+  }
+  return result;
+}
+
+// ─── HISTORY / DIFF ───────────────────────────────────────────
+function toggleCompare(idx){
+  const h=history[activeId]||[];const e=h[idx];
+  compareWith=(compareWith&&compareWith.date===e.date)?null:e;
+  renderMain();
+}
+function delHist(idx){
+  if(!confirm('Delete this history entry?'))return;
+  history[activeId].splice(idx,1);saveHi();
+  if(driveEnabled) driveSaveHistory(activeId);
+  if(compareWith)compareWith=null;renderMain();renderCo();
+}
+
+function computeDiff(cur,prev){
+  if(!cur||!prev)return null;
+  const diff={stats:{},newItems:{},removedItems:{}};
+  const cs=cur.stats||{},ps=prev.stats||{};
+  Object.keys({...cs,...ps}).forEach(k=>{
+    if(cs[k]!==undefined&&ps[k]!==undefined)diff.stats[k]={old:ps[k],new:cs[k],delta:cs[k]-ps[k]};
+    else if(cs[k]!==undefined)diff.stats[k]={old:null,new:cs[k],delta:null};
+  });
+  const ct=cur.tables||{},pt=prev.tables||{};
+  Object.keys({...ct,...pt}).forEach(tk=>{
+    const cr=(ct[tk]||{}).rows||[];const pr=(pt[tk]||{}).rows||[];
+    const ck=new Set(cr.filter(r=>r._key).map(r=>r._key));
+    const pk=new Set(pr.filter(r=>r._key).map(r=>r._key));
+    diff.newItems[tk]=cr.filter(r=>r._key&&!pk.has(r._key));
+    diff.removedItems[tk]=pr.filter(r=>r._key&&!ck.has(r._key));
+  });
+  return diff;
+}
+
+function renderDiffSection(diff,cur,prev){
+  if(!diff)return'';
+  const pd=new Date(prev.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const cd=new Date(cur.generatedAt).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const statKeys=[
+    {k:'totalEmailUsers',label:'Email Users',lb:false},{k:'usersNotInJC',label:'Not in JC',lb:true},
+    {k:'totalDevices',label:'JC Devices',lb:false},{k:'devicesNoEDR',label:'No EDR',lb:true},
+    {k:'edrNotInJC',label:'EDR Not JC',lb:true},{k:'offlineGT7',label:'Offline >7d',lb:true},
+    {k:'offlineGT30',label:'Offline >30d',lb:true},{k:'devicesNoUser',label:'No User',lb:true},
+  ];
+  const cards=statKeys.map(({k,label,lb})=>{
+    const d=diff.stats[k];if(!d||d.old===null)return'';
+    const del=d.delta;const imp=(lb&&del<0)||(!lb&&del>0);const wors=(lb&&del>0)||(!lb&&del<0);
+    const cls=del===0?'neut':imp?'good':'bad';
+    const tag=del===0?`<span class="dtag dt-s">= SAME</span>`:imp?`<span class="dtag dt-b">${del>0?'+':''}${del} BETTER</span>`:`<span class="dtag dt-w">${del>0?'+':''}${del} WORSE</span>`;
+    return `<div class="diff-card">
+      <div class="dc-lbl">${label}</div>
+      <div class="dc-vals"><span class="dc-old">${d.old}</span><span class="dc-arr">→</span><span class="dc-new ${cls}">${d.new}</span></div>
+      ${tag}
+    </div>`;
+  }).filter(Boolean);
+
+  const tblLabels={emailStatus:'Email Users',deviceStatus:'Devices',notInJC:'Not-in-JC',noEDR:'No-EDR',edrNotInJC:'EDR-only'};
+  let rowHtml='';
+  Object.keys(diff.newItems).forEach(tk=>{
+    const ni=diff.newItems[tk]||[],ri=diff.removedItems[tk]||[];
+    if(!ni.length&&!ri.length)return;
+    const lbl=tblLabels[tk]||tk;
+    rowHtml+=`<div style="margin-bottom:10px"><div style="font-size:9px;color:var(--muted);font-family:monospace;margin-bottom:5px;text-transform:uppercase">${lbl}</div>`;
+    if(ni.length)rowHtml+=`<div style="margin-bottom:3px"><span class="dtag dt-n">+${ni.length} NEW</span> <span style="font-size:9px;color:var(--muted);font-family:monospace">${ni.slice(0,5).map(r=>r._key||'').join(', ')}${ni.length>5?'...':''}</span></div>`;
+    if(ri.length)rowHtml+=`<div><span class="dtag dt-g">-${ri.length} REMOVED</span> <span style="font-size:9px;color:var(--muted);font-family:monospace">${ri.slice(0,5).map(r=>r._key||'').join(', ')}${ri.length>5?'...':''}</span></div>`;
+    rowHtml+=`</div>`;
+  });
+
+  return `<div class="diff-sec">
+    <h3>📊 Weekly Change: ${pd} → ${cd}</h3>
+    <div class="diff-cards">${cards.join('')||'<div style="font-size:11px;color:var(--muted)">No overlapping metrics</div>'}</div>
+    ${rowHtml?`<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:2px"><div style="font-family:monospace;font-size:9px;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Row-Level Changes</div>${rowHtml}</div>`:''}
+    <div class="diff-legend">
+      <div class="dl-i"><div class="dl-d" style="background:var(--new)"></div>New</div>
+      <div class="dl-i"><div class="dl-d" style="background:var(--gone)"></div>Removed</div>
+      <div class="dl-i"><div class="dl-d" style="background:var(--green)"></div>Improved</div>
+      <div class="dl-i"><div class="dl-d" style="background:var(--red)"></div>Worsened</div>
+    </div>
+  </div>`;
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────
+function renderDashboard(result,c){
+  const s=result.stats;
+  const diff=compareWith?computeDiff(result,compareWith):null;
+
+  const mkPill=(statKey,lb)=>{
+    if(!diff||!diff.stats[statKey]||diff.stats[statKey].old===null)return'';
+    const d=diff.stats[statKey].delta;
+    const imp=(lb&&d<0)||(!lb&&d>0);const wors=(lb&&d>0)||(!lb&&d<0);
+    if(d===0)return`<div class="diff-pill dp-sm">= no change</div>`;
+    if(imp)return`<div class="diff-pill dp-dn">${d>0?'▲':'▼'}${Math.abs(d)} better</div>`;
+    return`<div class="diff-pill dp-up">${d>0?'▲':'▼'}${Math.abs(d)} worse</div>`;
+  };
+
+  const mkCard=(cls,num,lbl,sub,sk,lb)=>`<div class="sc ${cls}"><div class="sn">${num}</div><div class="sl2">${lbl}</div><div class="ss">${sub}</div>${mkPill(sk,lb)}</div>`;
+
+  const cards=[
+    s.totalEmailUsers!==undefined?mkCard('cb',s.totalEmailUsers,'Email Users',`${s.usersInJC||0} in JumpCloud`,'totalEmailUsers',false):'',
+    s.usersNotInJC!==undefined?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Not in JumpCloud',s.usersNotInJC>0?'Action needed':'All mapped ✅','usersNotInJC',true):'',
+    s.totalDevices!==undefined?mkCard('cp',s.totalDevices,'JC Devices',`${s.devicesWithUser||0} user-mapped`,'totalDevices',false):'',
+    s.devicesNoEDR!==undefined?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
+    s.edrNotInJC!==undefined?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
+    s.offlineGT7!==undefined?mkCard(s.offlineGT7>0?'cy':'cg',s.offlineGT7,'Offline >7 Days',`${s.offlineGT30||0} offline >30d`,'offlineGT7',true):'',
+    s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
+  ].filter(Boolean);
+
+  const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
+
+  const tabs=Object.entries(result.tables).map(([k,t])=>`<button class="tab" onclick="switchTab(this,'${k}')">${t.title} <span style="font-size:9px;color:var(--muted)">(${t.rows.length})</span></button>`).join('');
+  const panels=Object.entries(result.tables).map(([k,t])=>`<div class="tab-panel" id="panel_${k}">${renderTable(t,k,diff)}</div>`).join('');
+  const diffHtml=diff?renderDiffSection(diff,result,compareWith):'';
+  const prevLbl=compareWith?`Comparing vs ${new Date(compareWith.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}`:'';
+
+  return `
+  <div class="ex-bar">
+    <div class="ex-info">
+      <strong>${result.company}</strong> — ${new Date(result.generatedAt).toLocaleString('en-IN')}
+      ${prevLbl?`<span style="color:var(--accent);margin-left:10px;font-size:10px;font-family:monospace">📅 ${prevLbl}</span>`:''}
+    </div>
+    <div class="ex-btns">
+      <button class="ex-btn ep" onclick="exportExcel()">⬇ Excel</button>
+      <button class="ex-btn" onclick="exportDiffExcel()" ${diff?'':'disabled'} title="${diff?'Download diff Excel':'Select history entry to compare'}">📊 Diff Excel</button>
+      <button class="ex-btn" onclick="resetReport()">↺ New</button>
+    </div>
+  </div>
+  ${alerts?`<div class="al-list">${alerts}</div>`:''}
+  ${diffHtml}
+  <div class="stats-grid">${cards.join('')}</div>
+  <div class="tabs">${tabs}</div>
+  <div id="tabPanels">${panels}</div>`;
+}
+
+function renderTable(t,key,diff){
+  if(!t.rows.length)return`<div class="empty-s"><div style="font-size:36px;margin-bottom:8px">📭</div><p>No records</p></div>`;
+  const nk=diff&&diff.newItems[key]?new Set(diff.newItems[key].map(r=>r._key)):new Set();
+  const rk=diff&&diff.removedItems[key]?new Set(diff.removedItems[key].map(r=>r._key)):new Set();
+  const removedRows=diff&&diff.removedItems[key]?diff.removedItems[key]:[];
+
+  const hdrs=t.cols.map(c=>`<th>${c}</th>`).join('')+(diff?'<th style="color:var(--accent);font-size:9px">CHG</th>':'');
+
+  const mkR=(row)=>{
+    const isNew=row._key&&nk.has(row._key);const isRm=row._key&&rk.has(row._key);
+    const rc=isNew?'row-new':isRm?'row-gone':(row._alert||row._noEDR||row._notInJC||row._off30)?'':'';
+    const tds=t.cols.map(col=>{
+      let v=row[col]!==undefined?row[col]:'';
+      if((col==='In JumpCloud'||col==='EDR'||col==='In JC')){
+        if(String(v).includes('✅'))v=`<span class="bdg bg">${v}</span>`;
+        else if(String(v).includes('❌'))v=`<span class="bdg br">${v}</span>`;
+      }
+      if(col==='Status'){
+        if(String(v).includes('🟢'))v=`<span class="bdg bg">${v}</span>`;
+        else if(String(v).includes('🟡'))v=`<span class="bdg by">${v}</span>`;
+        else if(String(v).includes('🟠'))v=`<span class="bdg bo">${v}</span>`;
+        else if(String(v).includes('🔴'))v=`<span class="bdg br">${v}</span>`;
+      }
+      if(col==='Days Offline'&&typeof row[col]==='number'){const d=row[col];v=`<span class="bdg ${d>30?'br':d>7?'bo':d>0?'by':'bg'}">${d}d</span>`;}
+      return`<td>${v}</td>`;
+    }).join('');
+    const diffTd=diff?(isNew?`<td><span class="dtag dt-n">NEW</span></td>`:isRm?`<td><span class="dtag dt-g">DEL</span></td>`:'<td></td>'):'';
+    return`<tr class="${rc}" style="${isRm?'opacity:.55':''}">${tds}${diffTd}</tr>`;
+  };
+
+  const body=t.rows.map(mkR).join('')+removedRows.map(mkR).join('');
+
+  return`<div class="tw">
+    <div class="th2">
+      <h3>${t.title}${diff?` <span style="font-size:9px;color:var(--accent);font-family:monospace">● DIFF ACTIVE</span>`:''}</h3>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <input class="si2" placeholder="🔍 Search..." oninput="ftbl(this,'tbl_${key}')">
+        <span class="tc">${t.rows.length} rows</span>
+      </div>
+    </div>
+    <div class="ts"><table id="tbl_${key}"><thead><tr>${hdrs}</tr></thead><tbody>${body}</tbody></table></div>
+  </div>`;
+}
+
+function switchTab(btn,key){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');const p=document.getElementById('panel_'+key);if(p)p.classList.add('active');
+}
+function ftbl(inp,tid){
+  const q=inp.value.toLowerCase();
+  document.getElementById(tid)?.querySelectorAll('tbody tr').forEach(tr=>{tr.style.display=tr.textContent.toLowerCase().includes(q)?'':'none';});
+}
+function resetReport(){currentReport=null;uploadedFiles={};compareWith=null;renderMain();}
+
+// ─── EXCEL EXPORT ─────────────────────────────────────────────
+function exportExcel(){
+  const r=currentReport;if(!r)return;
+  const wb=XLSX.utils.book_new();const now=new Date();const s=r.stats;
+  const sum=[['IT Security Report — '+r.company],['Generated: '+now.toLocaleString('en-IN')],[],['METRIC','VALUE','STATUS']];
+  if(s.totalEmailUsers!==undefined){sum.push(['Email Users',s.totalEmailUsers,'']);sum.push(['In JumpCloud',s.usersInJC,s.usersInJC===s.totalEmailUsers?'OK':'CHECK']);sum.push(['Not in JumpCloud',s.usersNotInJC,s.usersNotInJC>0?'ACTION':'OK']);}
+  if(s.totalDevices!==undefined){sum.push([]);sum.push(['JC Devices',s.totalDevices,'']);sum.push(['Devices w/ User',s.devicesWithUser,'']);sum.push(['No User Mapped',s.devicesNoUser,s.devicesNoUser>0?'Check':'OK']);sum.push(['No EDR',s.devicesNoEDR,s.devicesNoEDR>0?'UNPROTECTED':'OK']);sum.push(['EDR Not in JC',s.edrNotInJC,s.edrNotInJC>0?'INVESTIGATE':'OK']);sum.push(['Offline >7d',s.offlineGT7,s.offlineGT7>0?'ALERT':'OK']);sum.push(['Offline >30d',s.offlineGT30,s.offlineGT30>0?'CRITICAL':'OK']);}
+  const ws0=XLSX.utils.aoa_to_sheet(sum);ws0['!cols']=[{wch:35},{wch:15},{wch:20}];XLSX.utils.book_append_sheet(wb,ws0,'Summary');
+  Object.entries(r.tables).forEach(([,t])=>{
+    if(!t.rows.length)return;
+    const cl=t.rows.map(row=>{const o={};t.cols.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});
+    const ws=XLSX.utils.json_to_sheet(cl,{header:t.cols});ws['!cols']=t.cols.map(()=>({wch:22}));
+    XLSX.utils.book_append_sheet(wb,ws,t.title.substring(0,31));
+  });
+  XLSX.writeFile(wb,`${r.company.replace(/[^a-zA-Z0-9]/g,'_')}_Report_${now.toISOString().slice(0,10)}.xlsx`);
+  showToast('📥 Excel Downloaded!');
+}
+
+function exportDiffExcel(){
+  const r=currentReport;if(!r||!compareWith)return;
+  const diff=computeDiff(r,compareWith);if(!diff)return;
+  const wb=XLSX.utils.book_new();
+  const curD=new Date(r.generatedAt).toLocaleDateString('en-IN');
+  const preD=new Date(compareWith.date).toLocaleDateString('en-IN');
+  const sum=[['Weekly Change Report — '+r.company],[`${preD}  →  ${curD}`],[],['METRIC','PREV','CURRENT','CHANGE','STATUS']];
+  [{k:'totalEmailUsers',l:'Email Users',lb:false},{k:'usersNotInJC',l:'Not in JC',lb:true},{k:'totalDevices',l:'JC Devices',lb:false},{k:'devicesNoEDR',l:'No EDR',lb:true},{k:'edrNotInJC',l:'EDR Not JC',lb:true},{k:'offlineGT7',l:'Offline >7d',lb:true},{k:'offlineGT30',l:'Offline >30d',lb:true}].forEach(({k,l,lb})=>{
+    const d=diff.stats[k];if(!d||d.old===null)return;
+    const del=d.delta;const imp=(lb&&del<0)||(!lb&&del>0);
+    sum.push([l,d.old,d.new,del>0?'+'+del:del,del===0?'NO CHANGE':imp?'IMPROVED':'WORSENED']);
+  });
+  const ws0=XLSX.utils.aoa_to_sheet(sum);ws0['!cols']=[{wch:28},{wch:10},{wch:10},{wch:10},{wch:20}];XLSX.utils.book_append_sheet(wb,ws0,'Weekly Summary');
+
+  const tblL={emailStatus:'Email Users',deviceStatus:'Devices',notInJC:'Not In JC',noEDR:'No EDR',edrNotInJC:'EDR Not JC'};
+  Object.keys(diff.newItems).forEach(tk=>{
+    const ni=diff.newItems[tk]||[],ri=diff.removedItems[tk]||[];
+    const lbl=tblL[tk]||tk;
+    const ct=(r.tables[tk]||compareWith.tables[tk]||{}).cols||[];
+    if(ni.length){const rows=ni.map(row=>{const o={};ct.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,(lbl+' NEW').substring(0,31));}
+    if(ri.length){const rows=ri.map(row=>{const o={};ct.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,(lbl+' REMOVED').substring(0,31));}
+  });
+  XLSX.writeFile(wb,`${r.company.replace(/[^a-zA-Z0-9]/g,'_')}_WeeklyDiff_${new Date().toISOString().slice(0,10)}.xlsx`);
+  showToast('📊 Diff Report Downloaded!');
+}
+
+// ─── GOOGLE DRIVE INTEGRATION via Anthropic API ───────────────
+// Pre-configured Apps Script URL
+const DRIVE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwysTQqHorXBs1P6jlas56_A2Fg06i4-fXKa2ayBJv-kjtrMC-lFlmALo8csVS0Nqcj/exec';
+if(!localStorage.getItem('sv_drive_url'))localStorage.setItem('sv_drive_url',DRIVE_SCRIPT_URL);
+let driveEnabled=localStorage.getItem('sv_drive_enabled')==='true';
+let driveSyncing=false;
+
+// CORS-safe Drive API call — Apps Script accepts plain text POST without preflight
+async function driveCall(params){
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url)throw new Error('URL not set');
+  const resp=await fetch(url,{
+    method:'POST',
+    body:JSON.stringify(params)
+    // No Content-Type header — avoids CORS preflight
+  });
+  if(!resp.ok)throw new Error('HTTP '+resp.status);
+  const text=await resp.text();
+  try{return JSON.parse(text);}
+  catch(e){throw new Error('Bad response: '+text.substring(0,80));}
+}
+
+async function driveSaveHistory(companyId){
+  if(!driveEnabled||driveSyncing)return;
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url){updateDriveStatus('error','⚠️ URL not set');return;}
+  const c=getCo(companyId);if(!c)return;
+  const hist=history[companyId]||[];
+  const lastEntry=hist[hist.length-1];
+  try{
+    driveSyncing=true;updateDriveStatus('syncing','☁️ Saving...');
+    const data=await driveCall({action:'save',companyId,companyName:c.name,data:lastEntry});
+    if(data.status==='ok'){updateDriveStatus('ok','☁️ Synced ✓');showToast('☁️ Saved → Drive/SecureView/');}
+    else throw new Error(data.message||'Save failed');
+  }catch(err){
+    console.error('Drive save:',err);
+    const isCors=err.message.includes('fetch')||err.message.includes('Failed to fetch');
+    updateDriveStatus('error',isCors?'⚠️ CORS — Redeploy needed':'⚠️ '+err.message);
+    showToast(isCors?'⚠️ Apps Script redeploy karo — "Who has access: Anyone"':'⚠️ Drive: '+err.message);
+  }
+  finally{driveSyncing=false;}
+}
+
+async function driveLoadAllHistory(){
+  if(!driveEnabled)return;
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url){updateDriveStatus('error','⚠️ URL not set');showToast('⚠️ Apps Script URL nahi hai!');return;}
+  try{
+    updateDriveStatus('syncing','☁️ Loading...');
+    const data=await driveCall({action:'listCompanies'});
+    if(data.status!=='ok')throw new Error(data.message||'Load failed');
+    let loaded=0;
+    for(const co of (data.companies||[])){
+      const d2=await driveCall({action:'load',companyId:co.companyId});
+      if(d2.status==='ok'&&Array.isArray(d2.history)){history[co.companyId]=d2.history;loaded++;}
+    }
+    if(loaded>0){saveHi();updateDriveStatus('ok',`☁️ ${loaded} companies loaded`);showToast(`☁️ ${loaded} companies load ho gaye!`);renderCo();if(activeId)renderMain();}
+    else updateDriveStatus('ok','☁️ Connected (no history yet)');
+  }catch(err){
+    console.error('Drive load:',err);
+    const isCors=err.message.includes('fetch')||err.message.includes('Failed to fetch');
+    updateDriveStatus('error',isCors?'⚠️ CORS — Redeploy needed':'❌ '+err.message);
+    if(isCors)showToast('⚠️ Apps Script redeploy karo:\nDeploy > Manage > Who has access: Anyone');
+  }
+}
+
+function updateDriveStatus(state,msg){
+  const el=document.getElementById('driveStatus');
+  if(!el){ console.log('driveStatus:',state,msg); return; }
+  const col={ok:'var(--green)',error:'var(--red)',syncing:'var(--yellow)',off:'var(--muted)'};
+  el.innerHTML=`<span style="color:${col[state]||'var(--muted)'}">●</span> ${msg}`;
+}
+
+function toggleDrive(){
+  driveEnabled=!driveEnabled;localStorage.setItem('sv_drive_enabled',String(driveEnabled));
+  renderDriveBar();
+  if(driveEnabled){showToast('☁️ Drive sync ON!');driveLoadAllHistory();}
+  else{updateDriveStatus('off','Drive sync off');showToast('Drive sync OFF');}
+}
+
+function renderDriveBar(){
+  const el=document.getElementById('driveBar');if(!el)return;
+  const savedUrl=localStorage.getItem('sv_drive_url')||'';
+  el.innerHTML=`
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:${savedUrl||!driveEnabled?'0':'10px'}">
+    <span style="font-size:20px">☁️</span>
+    <div style="flex:1">
+      <div style="font-size:12px;font-weight:600;color:var(--text)">Google Drive Sync
+        <span style="font-size:9px;font-family:monospace;color:var(--muted);margin-left:8px">via Apps Script</span>
+      </div>
+      <div style="font-size:10px;color:var(--muted)">History auto-save to Drive → <span style="color:var(--accent);font-family:monospace">SecureView/</span> folder · Works on all machines</div>
+    </div>
+    <label class="tgl"><input type="checkbox" ${driveEnabled?'checked':''} onchange="toggleDrive()"><span class="tgl-s"></span></label>
+    <span id="driveStatus" style="font-size:11px;font-family:monospace;min-width:160px">${driveEnabled?'<span style="color:var(--green)">●</span> Enabled':'<span style="color:var(--muted)">●</span> Off'}</span>
+    ${driveEnabled?`<button class="ex-btn" onclick="driveLoadAllHistory()" style="padding:5px 11px;font-size:11px">🔄 Sync Now</button>`:''}
+  </div>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap">Apps Script URL:</span>
+    <input id="driveUrlInput" type="text"
+      placeholder="https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec"
+      value="${savedUrl}"
+      style="flex:1;min-width:280px;background:var(--bg);border:1px solid ${savedUrl?'var(--green)':'var(--border)'};border-radius:7px;padding:6px 12px;color:var(--text);font-size:11px;font-family:monospace;outline:none;"
+      oninput="saveDriveUrl(this.value)"
+    />
+    ${savedUrl?`<button class="ex-btn" onclick="testDriveConnection()" style="padding:5px 11px;font-size:11px;white-space:nowrap">🔌 Test Connection</button>`:''}
+    <span style="font-size:9px;color:var(--muted)">← Apps Script deploy ke baad milega</span>
+  </div>`;
+}
+
+function saveDriveUrl(url){
+  localStorage.setItem('sv_drive_url', url.trim());
+  const inp=document.getElementById('driveUrlInput');
+  if(inp) inp.style.borderColor=url.trim()?'var(--green)':'var(--border)';
+}
+
+async function testDriveConnection(){
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url){showToast('⚠️ Pehle URL paste karo!');return;}
+  updateDriveStatus('syncing','🔌 Testing...');
+  try{
+    const data=await driveCall({action:'ping'});
+    if(data.status==='ok'){updateDriveStatus('ok','☁️ Connected ✓');showToast('✅ Drive connection successful!');}
+    else throw new Error(data.message||'Ping failed');
+  }catch(err){
+    const isCors=err.message.includes('fetch')||err.message.includes('Failed to fetch');
+    updateDriveStatus('error','❌ Connection failed');
+    showToast(isCors
+      ?'❌ CORS Error!\n\nApps Script mein:\nDeploy > New Deployment > Web App\n"Who has access" = Anyone'
+      :'❌ '+err.message);
+  }
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+window.onload=()=>{
+  try{ renderDriveBar(); }catch(e){ console.error('driveBar:',e); }
+  try{ renderCo(); }catch(e){ console.error('renderCo:',e); }
+  try{
+    if(companies.length) selectCompany(companies[0].id);
+    else renderMain();
+  }catch(e){ console.error('renderMain:',e); }
+  // Drive sync after UI is ready — don't block UI
+  if(driveEnabled) setTimeout(()=>{ try{driveLoadAllHistory();}catch(e){} }, 1500);
+};
+</script>
+</body>
+</html>
