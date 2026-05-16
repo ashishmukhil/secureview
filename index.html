@@ -276,7 +276,8 @@ function renderMain(){
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:7px">
-            <span style="font-size:9px;color:${sel?'var(--accent)':'var(--muted)'};font-family:monospace">${sel?'● COMPARING':'click to compare'}</span>
+            <button onclick="event.stopPropagation();viewHistEntry(${realIdx})" style="background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.3);color:var(--accent);border-radius:5px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:monospace">👁 View</button>
+            <span style="font-size:9px;color:${sel?'var(--accent)':'var(--muted)'};font-family:monospace">${sel?'● COMPARING':'compare'}</span>
             <div class="hdel" onclick="event.stopPropagation();delHist(${realIdx})">✕</div>
           </div>
         </div>`;
@@ -515,6 +516,29 @@ function analyze(data,company){
 
   return result;
 }
+function viewHistEntry(idx){
+  const hist=history[activeId]||[];
+  const entry=hist[idx];
+  if(!entry)return;
+  const c=getCo(activeId);
+  // Set as current report to view — without overwriting saved history
+  currentReport={
+    generatedAt:entry.date,
+    company:entry.company||c.name,
+    tables:entry.tables||{},
+    stats:entry.stats||{},
+    alerts:[],
+    _isHistView:true
+  };
+  compareWith=null;
+  const dash=document.getElementById('dash');
+  if(dash){dash.style.display='block';dash.innerHTML=renderDashboard(currentReport,c);}
+  // Scroll to dashboard
+  dash.scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>{const ft=document.querySelector('.tab');if(ft&&!document.querySelector('.tab.active'))ft.click();},50);
+  showToast(`👁 Viewing: ${new Date(entry.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}`);
+}
+
 function toggleCompare(idx){
   const h=history[activeId]||[];const e=h[idx];
   compareWith=(compareWith&&compareWith.date===e.date)?null:e;
