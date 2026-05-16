@@ -599,6 +599,26 @@ function analyze(data,company){
       };
     });
 
+    // EDR-only devices (in EDR but not in JC) — add as separate rows
+    if(edrDevs.length){
+      const edrOnlyDevs=edrDevs.filter(d=>!jcDevSet.has(d.name));
+      edrOnlyDevs.forEach(d=>{
+        masterRows.push({
+          'Name':'Unknown User',
+          'Email':'N/A',
+          'In Email':'⚫ N/A',
+          'In JumpCloud':'❌ No',
+          'JC Device':d.name,
+          'Days Offline':'N/A',
+          'Offline Status':'🟠 Not in JC',
+          'EDR':'✅ Yes (EDR Only)',
+          'Zscaler':'N/A',
+          'Overall':'⚠️ Check',
+          _key:'edr_'+d.name,_alert:true
+        });
+      });
+    }
+
     result.tables={
       masterSummary:{
         title:'🔍 Master Summary',
