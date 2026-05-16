@@ -514,16 +514,27 @@ function analyze(data,company){
     if(result.stats.zsRemovePending>0)result.alerts.push({type:'info',text:`${result.stats.zsRemovePending} Zscaler users Remove Pending`,sub:''});
   }
 
-  // ── MASTER SUMMARY — All tools per email ──────────────────────
-  if(emailUsers.length){
-    const masterRows=emailUsers.map(u=>{
+  // ── MASTER SUMMARY — All tools per email (Email + JC union) ──
+  // Combine email users + JC users (union — no duplicates)
+  const allUsersMap={};
+  emailUsers.forEach(u=>{allUsersMap[u.email]={name:u.name,email:u.email,inEmail:true};});
+  jcUsers.forEach(u=>{
+    if(!allUsersMap[u.email]){
+      const name=u.firstname?(u.firstname+' '+(u.lastname||'')).trim():u.username;
+      allUsersMap[u.email]={name,email:u.email,inEmail:false};
+    }
+  });
+  const allUsers=Object.values(allUsersMap);
+
+  if(allUsers.length){
+    const masterRows=allUsers.map(u=>{
       // JC status
       const inJC=jcEmailSet.has(u.email);
       let jcUser=null;
       if(inJC)jcUser=jcUsers.find(j=>j.email===u.email);
 
-      // JC Device
-      let deviceName='N/A', daysOffline='N/A', offlineStatus='N/A';
+      // JC Device + Offline
+      let deviceName='N/A',daysOffline='N/A',offlineStatus='N/A';
       if(jcUser){
         const ud=udMap.filter(m=>m.username===jcUser.username);
         if(ud.length){
@@ -544,17 +555,15 @@ function analyze(data,company){
       let edrStatus='N/A';
       if(jcUser){
         const ud=udMap.filter(m=>m.username===jcUser.username);
-        if(ud.length){
-          const devHost=ud[0].device;
-          edrStatus=edrSet.has(devHost)?'✅ Yes':'❌ No';
-        }
+        if(ud.length){edrStatus=edrSet.has(ud[0].device)?'✅ Yes':'❌ No';}
+        else edrStatus='❌ No Device';
       } else edrStatus='⚫ No JC';
 
       // Zscaler status
-      let zsStatus='N/A', zsState='N/A';
+      let zsStatus='N/A',zsState='N/A';
       if(data.zscaler&&data.zscaler.length){
-        const zsByEmail={};
         const statePri={'Registered':3,'Unregistered':2,'Remove pending':1};
+        const zsByEmail={};
         (data.zscaler||[]).forEach(r=>{
           const em=norm(r['User']||'');
           if(!zsByEmail[em])zsByEmail[em]=[];
@@ -571,15 +580,14 @@ function analyze(data,company){
           zsState=best['Device State']||'N/A';
           const icon=zsState==='Registered'?'✅':zsState==='Unregistered'?'🟡':'🟠';
           zsStatus=`${icon} ${zsState}`;
-        } else {
-          zsStatus='❌ Not Found';zsState='Not Found';
-        }
+        } else {zsStatus='❌ Not Found';zsState='Not Found';}
       }
 
       const overallOk=inJC&&edrStatus==='✅ Yes'&&zsState==='Registered'&&(daysOffline==='N/A'||daysOffline<=7);
       return {
         'Name':u.name,
         'Email':u.email,
+        'In Email':u.inEmail?'✅':'⚫ JC Only',
         'In JumpCloud':inJC?'✅ Yes':'❌ No',
         'JC Device':deviceName,
         'Days Offline':daysOffline,
@@ -587,17 +595,15 @@ function analyze(data,company){
         'EDR':edrStatus,
         'Zscaler':zsStatus,
         'Overall':overallOk?'✅ OK':'⚠️ Check',
-        _key:u.email,
-        _alert:!overallOk
+        _key:u.email,_alert:!overallOk
       };
     });
 
-    // Insert as FIRST table so it appears first in tabs
     result.tables={
       masterSummary:{
         title:'🔍 Master Summary',
         rows:masterRows,
-        cols:['Name','Email','In JumpCloud','JC Device','Days Offline','Offline Status','EDR','Zscaler','Overall']
+        cols:['Name','Email','In Email','In JumpCloud','JC Device','Days Offline','Offline Status','EDR','Zscaler','Overall']
       },
       ...result.tables
     };
