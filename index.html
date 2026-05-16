@@ -802,8 +802,27 @@ async function driveLoadAllHistory(){
       const d2=await driveCall({action:'load',companyId:co.companyId});
       if(d2.status==='ok'&&Array.isArray(d2.history)){history[co.companyId]=d2.history;loaded++;}
     }
-    if(loaded>0){saveHi();updateDriveStatus('ok',`☁️ ${loaded} companies loaded`);showToast(`☁️ ${loaded} companies load ho gaye!`);renderCo();if(activeId)renderMain();}
-    else updateDriveStatus('ok','☁️ Connected (no history yet)');
+    if(loaded>0){
+      saveHi();
+      // Auto-create companies from Drive history if not in localStorage
+      let companiesAdded=0;
+      for(const co of(data.companies||[])){
+        if(!companies.find(c=>c.id===co.companyId)){
+          companies.push({
+            id:co.companyId,
+            name:co.companyName||co.companyId,
+            hasEmail:true,hasJC:true,hasEDR:true,hasZS:false
+          });
+          companiesAdded++;
+        }
+      }
+      if(companiesAdded>0)saveCo();
+      updateDriveStatus('ok',`☁️ ${loaded} companies loaded`);
+      showToast(`☁️ ${loaded} companies load ho gaye!`);
+      renderCo();
+      if(activeId)renderMain();
+      else if(companies.length){selectCompany(companies[0].id);}
+    }else updateDriveStatus('ok','☁️ Connected (no history yet)');
   }catch(err){
     console.error('Drive load:',err);
     const isCors=err.message.includes('fetch')||err.message.includes('Failed to fetch');
