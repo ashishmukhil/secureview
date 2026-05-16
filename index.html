@@ -515,7 +515,6 @@ function analyze(data,company){
   }
 
   // ── MASTER SUMMARY — All tools per email (Email + JC union) ──
-  // Combine email users + JC users (union — no duplicates)
   const allUsersMap={};
   emailUsers.forEach(u=>{allUsersMap[u.email]={name:u.name,email:u.email,inEmail:true};});
   jcUsers.forEach(u=>{
@@ -527,31 +526,107 @@ function analyze(data,company){
   const allUsers=Object.values(allUsersMap);
 
   if(allUsers.length){
+    // Pre-build Zscaler lookup
+    const statePri={'Registered':3,'Unregistered':2,'Remove pending':1};
+    const zsByEmail={};
+    if(data.zscaler&&data.zscaler.length){
+      data.zscaler.forEach(r=>{
+        const em=norm(r['User']||'');
+        if(!zsByEmail[em])zsByEmail[em]=[];
+        zsByEmail[em].push(r);
+      });
+    }
+
+    // Parse policyStats string {total:8,success:7,failed:1,...}
+    const parsePolicyStats=str=>{
+      if(!str||str==='')return null;
+      try{
+        const clean=str.replace(/(\w+):/g,'"$1":').replace(/'/g,'"');
+        return JSON.parse(clean);
+      }catch(e){
+        const total=str.match(/total:(\d+)/);const success=str.match(/success:(\d+)/);const failed=str.match(/failed:(\d+)/);
+        if(total&&success)return{total:+total[1],success:+success[1],failed:failed?+failed[1]:0};
+        return null;
+      }
+    };
+
+    // Parse mfaEnrollment string
+    const parseMfaEnrollment=str=>{
+      if(!str||str==='')return null;
+      try{
+        const clean=str.replace(/(\w+):/g,'"$1":').replace(/'/g,'"');
+        return JSON.parse(clean);
+      }catch(e){
+        const overall=str.match(/overallStatus:(\w+)/);
+        return overall?{overallStatus:overall[1]}:null;
+      }
+    };
+
     const masterRows=allUsers.map(u=>{
-      // JC status
       const inJC=jcEmailSet.has(u.email);
       let jcUser=null;
       if(inJC)jcUser=jcUsers.find(j=>j.email===u.email);
 
       // JC Device + Offline
-      let deviceName='N/A',daysOffline='N/A',offlineStatus='N/A';
+      let deviceName='N/A',offlineStatus='N/A',daysOff=null;
+      let policyStatus='N/A',deviceMFA='N/A';
       if(jcUser){
         const ud=udMap.filter(m=>m.username===jcUser.username);
         if(ud.length){
           const devHost=ud[0].device;
           const dev=jcDevices.find(d=>d.hostname===devHost);
-          deviceName=dev?dev.displayName:devHost;
-          if(dev&&dev.daysOffline!==null){
-            daysOffline=dev.daysOffline;
-            if(dev.daysOffline===0)offlineStatus='🟢 Online';
-            else if(dev.daysOffline<=7)offlineStatus=`🟡 ${dev.daysOffline}d`;
-            else if(dev.daysOffline<=30)offlineStatus=`🟠 ${dev.daysOffline}d`;
-            else offlineStatus=`🔴 ${dev.daysOffline}d`;
+          if(dev){
+            deviceName=dev.displayName;
+            daysOff=dev.daysOffline;
+            if(daysOff!==null){
+              if(daysOff===0)offlineStatus='🟢 Online';
+              else if(daysOff<=7)offlineStatus=`🟡 ${daysOff}d`;
+              else if(daysOff<=30)offlineStatus=`🟠 ${daysOff}d`;
+              else offlineStatus=`🔴 ${daysOff}d`;
+            }
           }
         }
       }
 
-      // EDR status
+      // Policy Status from JC Device raw data
+      if(jcUser&&data.jcDevices){
+        const ud=udMap.filter(m=>m.username===jcUser.username);
+        if(ud.length){
+          const devHost=ud[0].device;
+          const rawDev=data.jcDevices.find(r=>normD(r['hostname']||r['displayName']||'')===devHost);
+          if(rawDev){
+            // Device MFA
+            const dmfa=rawDev['allowMultiFactorAuthentication'];
+            deviceMFA=dmfa==='True'||dmfa===true||dmfa==='true'?'✅ On':'❌ Off';
+            // Policy Stats
+            const ps=parsePolicyStats(rawDev['policyStats']||'');
+            if(ps&&ps.total>0){
+              const icon=ps.failed>0?'⚠️':'✅';
+              policyStatus=`${icon} ${ps.success}/${ps.total}`;
+            } else if(rawDev['isPolicyBound']==='False'||rawDev['isPolicyBound']===false){
+              policyStatus='⚫ No Policy';
+            }
+          }
+        }
+      }
+
+      // User MFA
+      let userMFA='N/A';
+      if(jcUser&&data.jcUsers){
+        const rawUser=data.jcUsers.find(r=>norm(r['email']||'')===u.email);
+        if(rawUser){
+          const enrollment=parseMfaEnrollment(rawUser['mfaEnrollment']||'');
+          if(enrollment){
+            userMFA=enrollment.overallStatus==='ENROLLED'?'✅ Enrolled':'❌ Not Enrolled';
+          } else if(rawUser['totp_enabled']==='True'||rawUser['totp_enabled']===true){
+            userMFA='✅ Enrolled';
+          } else {
+            userMFA='❌ Not Enrolled';
+          }
+        }
+      }
+
+      // EDR
       let edrStatus='N/A';
       if(jcUser){
         const ud=udMap.filter(m=>m.username===jcUser.username);
@@ -559,16 +634,9 @@ function analyze(data,company){
         else edrStatus='❌ No Device';
       } else edrStatus='⚫ No JC';
 
-      // Zscaler status
+      // Zscaler
       let zsStatus='N/A',zsState='N/A';
       if(data.zscaler&&data.zscaler.length){
-        const statePri={'Registered':3,'Unregistered':2,'Remove pending':1};
-        const zsByEmail={};
-        (data.zscaler||[]).forEach(r=>{
-          const em=norm(r['User']||'');
-          if(!zsByEmail[em])zsByEmail[em]=[];
-          zsByEmail[em].push(r);
-        });
         const entries=zsByEmail[u.email]||[];
         if(entries.length){
           entries.sort((a,b)=>{
@@ -576,43 +644,38 @@ function analyze(data,company){
             if(pd!==0)return pd;
             return(b['Registration TimeStamp']?new Date(b['Registration TimeStamp']).getTime():0)-(a['Registration TimeStamp']?new Date(a['Registration TimeStamp']).getTime():0);
           });
-          const best=entries[0];
-          zsState=best['Device State']||'N/A';
+          zsState=entries[0]['Device State']||'N/A';
           const icon=zsState==='Registered'?'✅':zsState==='Unregistered'?'🟡':'🟠';
           zsStatus=`${icon} ${zsState}`;
         } else {zsStatus='❌ Not Found';zsState='Not Found';}
       }
 
-      const overallOk=inJC&&edrStatus==='✅ Yes'&&zsState==='Registered'&&(daysOffline==='N/A'||daysOffline<=7);
-      return {
-        'Name':u.name,
-        'Email':u.email,
+      const overallOk=inJC&&edrStatus==='✅ Yes'&&zsState==='Registered'&&userMFA==='✅ Enrolled'&&(daysOff===null||daysOff<=7);
+      return{
+        'Name':u.name,'Email':u.email,
         'In Email':u.inEmail?'✅':'⚫ JC Only',
         'In JumpCloud':inJC?'✅ Yes':'❌ No',
         'JC Device':deviceName,
-        'Days Offline':daysOffline,
         'Offline Status':offlineStatus,
         'EDR':edrStatus,
         'Zscaler':zsStatus,
+        'Policy Status':policyStatus,
+        'User MFA':userMFA,
+        'Device MFA':deviceMFA,
         'Overall':overallOk?'✅ OK':'⚠️ Check',
         _key:u.email,_alert:!overallOk
       };
     });
 
-    // EDR-only devices (in EDR but not in JC) — add as separate rows
+    // EDR-only devices
     if(edrDevs.length){
-      const edrOnlyDevs=edrDevs.filter(d=>!jcDevSet.has(d.name));
-      edrOnlyDevs.forEach(d=>{
+      edrDevs.filter(d=>!jcDevSet.has(d.name)).forEach(d=>{
         masterRows.push({
-          'Name':'Unknown User',
-          'Email':'N/A',
-          'In Email':'⚫ N/A',
-          'In JumpCloud':'❌ No',
-          'JC Device':d.name,
-          'Days Offline':'N/A',
-          'Offline Status':'🟠 Not in JC',
-          'EDR':'✅ Yes (EDR Only)',
-          'Zscaler':'N/A',
+          'Name':'Unknown User','Email':'N/A',
+          'In Email':'⚫ N/A','In JumpCloud':'❌ No',
+          'JC Device':d.name,'Offline Status':'🟠 Not in JC',
+          'EDR':'✅ Yes (EDR Only)','Zscaler':'N/A',
+          'Policy Status':'N/A','User MFA':'N/A','Device MFA':'N/A',
           'Overall':'⚠️ Check',
           _key:'edr_'+d.name,_alert:true
         });
@@ -623,7 +686,7 @@ function analyze(data,company){
       masterSummary:{
         title:'🔍 Master Summary',
         rows:masterRows,
-        cols:['Name','Email','In Email','In JumpCloud','JC Device','Days Offline','Offline Status','EDR','Zscaler','Overall']
+        cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status','EDR','Zscaler','Policy Status','User MFA','Device MFA','Overall']
       },
       ...result.tables
     };
