@@ -282,7 +282,7 @@ function renderMain(){
           </div>
         </div>`;
       }).join('')}</div>
-      <div style="margin-top:7px;font-size:9px;color:var(--muted)">💡 Click history entry to compare with current report. Shown as colored diff in tables & stat cards.</div>
+      <div style="margin-top:7px;font-size:9px;color:var(--muted)">💡 <strong style="color:var(--accent)">Compare:</strong> Ek entry click karo (select) → dusri pe 👁 View → diff dikhega &nbsp;|&nbsp; <strong style="color:var(--accent)">Sirf dekhna:</strong> Seedha 👁 View click karo</div>
     </div>`;
   }
 
@@ -521,22 +521,41 @@ function viewHistEntry(idx){
   const entry=hist[idx];
   if(!entry)return;
   const c=getCo(activeId);
-  // Set as current report to view — without overwriting saved history
-  currentReport={
-    generatedAt:entry.date,
-    company:entry.company||c.name,
-    tables:entry.tables||{},
-    stats:entry.stats||{},
-    alerts:[],
-    _isHistView:true
-  };
-  compareWith=null;
+
+  // If another entry already selected as compareWith — compare those two
+  if(compareWith&&compareWith.date!==entry.date){
+    // View entry[idx] as current, compareWith as previous
+    currentReport={
+      generatedAt:entry.date,
+      company:entry.company||c.name,
+      tables:entry.tables||{},
+      stats:entry.stats||{},
+      alerts:[],
+      _isHistView:true
+    };
+    // compareWith already set — diff will show automatically
+  } else {
+    // Just view this entry standalone
+    currentReport={
+      generatedAt:entry.date,
+      company:entry.company||c.name,
+      tables:entry.tables||{},
+      stats:entry.stats||{},
+      alerts:[],
+      _isHistView:true
+    };
+    compareWith=null;
+  }
+
   const dash=document.getElementById('dash');
-  if(dash){dash.style.display='block';dash.innerHTML=renderDashboard(currentReport,c);}
-  // Scroll to dashboard
-  dash.scrollIntoView({behavior:'smooth',block:'start'});
+  if(dash){
+    dash.style.display='block';
+    dash.innerHTML=renderDashboard(currentReport,c);
+    dash.scrollIntoView({behavior:'smooth',block:'start'});
+  }
   setTimeout(()=>{const ft=document.querySelector('.tab');if(ft&&!document.querySelector('.tab.active'))ft.click();},50);
-  showToast(`👁 Viewing: ${new Date(entry.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}`);
+  const d=new Date(entry.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  showToast(compareWith?`📊 Comparing reports`:` 👁 Viewing: ${d}`);
 }
 
 function toggleCompare(idx){
