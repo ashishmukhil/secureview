@@ -369,7 +369,7 @@ function analyze(data,company){
   const now=new Date();
   const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
   const norm=s=>(s||'').toString().trim().toLowerCase();
-  const normD=s=>(s||'').toString().trim().toUpperCase();
+  const normD=s=>(s||'').toString().trim().toUpperCase().replace(/\.LOCAL$/,'');
 
   const emailUsers=(data.email||[]).map(r=>({name:r['user_name']||r['name']||r['Name']||'',email:norm(r['user_email']||r['email']||r['Email']||'')})).filter(r=>r.email);
   const jcUsers=(data.jcUsers||[]).map(r=>({email:norm(r['email']||''),username:norm(r['username']||''),state:r['state']||''})).filter(r=>r.email||r.username);
