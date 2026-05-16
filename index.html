@@ -953,9 +953,11 @@ function exportExcel(){
   const ws0=XLSX.utils.aoa_to_sheet(sum);ws0['!cols']=[{wch:35},{wch:15},{wch:20}];XLSX.utils.book_append_sheet(wb,ws0,'Summary');
   Object.entries(r.tables).forEach(([,t])=>{
     if(!t.rows.length)return;
-    const cl=t.rows.map(row=>{const o={};t.cols.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});
+    const cl=t.rows.map(row=>{const o={};t.cols.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️⚫👁🔍🔒]/g,'').trim():'';});return o;});
     const ws=XLSX.utils.json_to_sheet(cl,{header:t.cols});ws['!cols']=t.cols.map(()=>({wch:22}));
-    XLSX.utils.book_append_sheet(wb,ws,t.title.substring(0,31));
+    // Excel sheet name: max 31 chars, no special chars : \ / ? [ ] *
+    const sheetName=t.title.replace(/[:\\\/?[\]*]/g,'').replace(/[🔍🔒👁⚠️✅❌🟢🟡🟠🔴⚫]/g,'').trim().substring(0,31);
+    XLSX.utils.book_append_sheet(wb,ws,sheetName||'Sheet');
   });
   XLSX.writeFile(wb,`${r.company.replace(/[^a-zA-Z0-9]/g,'_')}_Report_${now.toISOString().slice(0,10)}.xlsx`);
   showToast('📥 Excel Downloaded!');
@@ -975,13 +977,15 @@ function exportDiffExcel(){
   });
   const ws0=XLSX.utils.aoa_to_sheet(sum);ws0['!cols']=[{wch:28},{wch:10},{wch:10},{wch:10},{wch:20}];XLSX.utils.book_append_sheet(wb,ws0,'Weekly Summary');
 
-  const tblL={emailStatus:'Email Users',deviceStatus:'Devices',notInJC:'Not In JC',noEDR:'No EDR',edrNotInJC:'EDR Not JC'};
+  const tblL={emailStatus:'Email Users',deviceStatus:'Devices',notInJC:'Not In JC',noEDR:'No EDR',edrNotInJC:'EDR Not JC',masterSummary:'Master Summary',zsStatus:'Zscaler',notInZS:'No ZS',zsProblematic:'ZS Issues'};
+  const cleanSheet=s=>s.replace(/[:\\\/?[\]*]/g,'').replace(/[🔍🔒👁⚠️✅❌🟢🟡🟠🔴⚫]/g,'').trim().substring(0,31)||'Sheet';
+  const cleanVal=v=>v!==undefined?String(v).replace(/[✅❌🟢🟡🟠🔴⚠️⚫🔍🔒]/g,'').trim():'';
   Object.keys(diff.newItems).forEach(tk=>{
     const ni=diff.newItems[tk]||[],ri=diff.removedItems[tk]||[];
     const lbl=tblL[tk]||tk;
     const ct=(r.tables[tk]||compareWith.tables[tk]||{}).cols||[];
-    if(ni.length){const rows=ni.map(row=>{const o={};ct.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,(lbl+' NEW').substring(0,31));}
-    if(ri.length){const rows=ri.map(row=>{const o={};ct.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️]/g,'').trim():'';});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,(lbl+' REMOVED').substring(0,31));}
+    if(ni.length){const rows=ni.map(row=>{const o={};ct.forEach(c=>{o[c]=cleanVal(row[c]);});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,cleanSheet(lbl+' NEW'));}
+    if(ri.length){const rows=ri.map(row=>{const o={};ct.forEach(c=>{o[c]=cleanVal(row[c]);});return o;});const ws=XLSX.utils.json_to_sheet(rows,{header:ct});ws['!cols']=ct.map(()=>({wch:22}));XLSX.utils.book_append_sheet(wb,ws,cleanSheet(lbl+' REMOVED'));}
   });
   XLSX.writeFile(wb,`${r.company.replace(/[^a-zA-Z0-9]/g,'_')}_WeeklyDiff_${new Date().toISOString().slice(0,10)}.xlsx`);
   showToast('📊 Diff Report Downloaded!');
