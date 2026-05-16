@@ -483,12 +483,13 @@ function analyze(data,company){
         allStates,totalEntries:entries.length,_key:email};
     });
 
-    // Email users vs Zscaler
-    const zsRows=emailUsers.map(u=>{
+    // Compare Zscaler with JC Users (not email users)
+    const zsRows=jcUsers.map(u=>{
       const zs=zsUsers.find(z=>z.email===u.email);
-      if(!zs)return{Name:u.name,Email:u.email,'ZS Status':'❌ Not Found','Effective State':'Not Found','Hostname':'N/A','Last Seen ZIA':'N/A','ZCC Version':'N/A','All States':'N/A',_noZS:true,_key:u.email};
+      const displayName=u.firstname?(u.firstname+' '+(u.lastname||'')).trim():u.username;
+      if(!zs)return{Name:displayName,Email:u.email,'ZS Status':'❌ Not Found','Effective State':'Not Found','Hostname':'N/A','Last Seen ZIA':'N/A','ZCC Version':'N/A','All States':'N/A',_noZS:true,_key:u.email};
       const icon=zs.effectiveState==='Registered'?'✅':zs.effectiveState==='Unregistered'?'🟡':'🟠';
-      return{Name:u.name,Email:u.email,'ZS Status':`${icon} ${zs.effectiveState}`,'Effective State':zs.effectiveState,
+      return{Name:displayName,Email:u.email,'ZS Status':`${icon} ${zs.effectiveState}`,'Effective State':zs.effectiveState,
         'Hostname':zs.hostname,'Last Seen ZIA':zs.lastSeen?zs.lastSeen.substring(0,16):'N/A',
         'ZCC Version':zs.zccVersion,'All States':zs.allStates,_noZS:false,_key:u.email};
     });
@@ -496,7 +497,7 @@ function analyze(data,company){
     result.tables.zsStatus={title:'Zscaler Status',rows:zsRows,cols:['Name','Email','ZS Status','Hostname','Last Seen ZIA','ZCC Version','All States']};
 
     const notInZS=zsRows.filter(r=>r._noZS);
-    if(notInZS.length)result.tables.notInZS={title:'No Zscaler (Email Active)',rows:notInZS.map(r=>({Name:r.Name,Email:r.Email,Status:'Not in Zscaler',_key:r._key})),cols:['Name','Email','Status']};
+    if(notInZS.length)result.tables.notInZS={title:'JC Users — No Zscaler',rows:notInZS.map(r=>({Name:r.Name,Email:r.Email,Status:'JC Active — Not in Zscaler',_key:r._key})),cols:['Name','Email','Status']};
 
     const zsProb=zsRows.filter(r=>!r._noZS&&r['Effective State']!=='Registered');
     if(zsProb.length)result.tables.zsProblematic={title:'ZS — Unregistered / Remove Pending',rows:zsProb.map(r=>({Name:r.Name,Email:r.Email,'Status':r['ZS Status'],'All States':r['All States'],'Last Seen':r['Last Seen ZIA'],_key:r._key})),cols:['Name','Email','Status','All States','Last Seen']};
