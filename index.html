@@ -452,9 +452,12 @@ function analyze(data,company){
     result.stats.offlineGT7=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>7).length;
     result.stats.offlineGT30=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>30).length;
     result.stats.onlineToday=rows.filter(r=>r['Days Offline']===0).length;
-    if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Device Name']).join(', ')});
-    if(result.stats.edrNotInJC>0)result.alerts.push({type:'warning',text:`${result.stats.edrNotInJC} EDR devices not in JumpCloud`,sub:edrOnly.map(r=>r['Device Name']).join(', ')});
-    if(result.stats.offlineGT30>0)result.alerts.push({type:'critical',text:`${result.stats.offlineGT30} devices offline >30 days`,sub:rows.filter(r=>r._off30).map(r=>r['Device Name']+'('+r['Days Offline']+'d)').join(', ')});
+    // Only show EDR alerts if Checkpoint EDR file was uploaded
+    if(data.edr&&data.edr.length){
+      if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Display Name']).slice(0,5).join(', ')});
+      if(result.stats.edrNotInJC>0)result.alerts.push({type:'warning',text:`${result.stats.edrNotInJC} EDR devices not in JumpCloud`,sub:edrOnly.map(r=>r['Display Name']).slice(0,5).join(', ')});
+    }
+    if(result.stats.offlineGT30>0)result.alerts.push({type:'critical',text:`${result.stats.offlineGT30} devices offline >30 days`,sub:rows.filter(r=>r._off30).map(r=>r['Display Name']+'('+r['Days Offline']+'d)').slice(0,5).join(', ')});
     if(result.stats.offlineGT7>0)result.alerts.push({type:'warning',text:`${result.stats.offlineGT7} devices offline >7 days`,sub:''});
     if(result.stats.devicesNoUser>0)result.alerts.push({type:'info',text:`${result.stats.devicesNoUser} devices not mapped to any user`,sub:''});
     result.tables.noEDR={title:'JC No EDR',rows:rows.filter(r=>r._noEDR).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],User:r['Mapped User'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],_key:r._key})),cols:['Display Name','Hostname','User','Last Seen','Days Offline']};
@@ -531,21 +534,27 @@ function analyze(data,company){
     const GENERIC_CS_GROUPS=new Set(['Newly added Server and Devices']);
     const parseCSGroups=str=>{
       if(!str||str.trim()==='')return'N/A';
-      const groups=str.split(',').map(g=>g.trim()).filter(g=>g&&!GENERIC_CS_GROUPS.has(g));
+      const groups=str.toString().split('\n')[0].split(',').map(g=>g.trim()).filter(g=>g&&!GENERIC_CS_GROUPS.has(g));
       return groups.length>0?groups.join(', '):'—';
     };
 
-    const csDevs=data.crowdstrike.map(r=>({
-      name:normD(r['Hostname']||''),
-      lastSeen:r['Last Seen']||'',
-      platform:r['Platform']||'',
-      osVersion:r['OS Version']||'',
-      hostGroups:parseCSGroups(r['Host Groups']||''),
-      lastUser:r['Last Logged In User Account']||'',
-      sensorVersion:r['Sensor Version']||'',
-      preventionPolicy:r['Prevention Policy']||'',
-      _raw:r
-    })).filter(r=>r.name);
+    // Filter valid rows — must have Hostname AND valid Host ID (36 char UUID)
+    const csDevs=data.crowdstrike
+      .filter(r=>{
+        const h=(r['Hostname']||'').toString().trim();
+        const id=(r['Host ID']||'').toString().trim();
+        return h&&h.length>0&&id&&id.length>=16;
+      })
+      .map(r=>({
+        name:normD((r['Hostname']||'').toString().trim()),
+        lastSeen:(r['Last Seen']||'').toString().split('\n')[0].trim(),
+        platform:(r['Platform']||'').toString().split('\n')[0].trim(),
+        osVersion:(r['OS Version']||'').toString().split('\n')[0].trim(),
+        hostGroups:parseCSGroups(r['Host Groups']||''),
+        lastUser:(r['Last Logged In User Account']||'').toString().split('\n')[0].trim(),
+        sensorVersion:(r['Sensor Version']||'').toString().split('\n')[0].trim(),
+        preventionPolicy:(r['Prevention Policy']||'').toString().split('\n')[0].trim(),
+      })).filter(r=>r.name);
 
     const csDevSet=new Set(csDevs.map(d=>d.name));
 
