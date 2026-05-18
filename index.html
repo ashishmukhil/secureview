@@ -185,8 +185,28 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="tg-grp">
         <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="hEmail" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="hJC" checked><span class="tgl-s"></span></label></div>
-        <div class="tg-item"><label>🛡️ EDR / Checkpoint</label><label class="tgl"><input type="checkbox" id="hEDR" checked><span class="tgl-s"></span></label></div>
-        <div class="tg-item"><label>🦅 CrowdStrike EDR</label><label class="tgl"><input type="checkbox" id="hCS"><span class="tgl-s"></span></label></div>
+        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select One)</label>
+          <div style="display:flex;flex-direction:column;gap:6px;background:rgba(0,212,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="radio" name="edrType" id="hEDRnone" value="none" checked style="accent-color:var(--accent)">
+                <span>⚫ No EDR</span>
+              </label>
+            </div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="radio" name="edrType" id="hEDR" value="cp" style="accent-color:var(--accent)">
+                <span>🛡️ Checkpoint EDR</span>
+              </label>
+            </div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="radio" name="edrType" id="hCS" value="cs" style="accent-color:var(--accent)">
+                <span>🦅 CrowdStrike EDR</span>
+              </label>
+            </div>
+          </div>
+        </div>
         <div class="tg-item"><label>🔒 Zscaler (Device Export CSV)</label><label class="tgl"><input type="checkbox" id="hZS"><span class="tgl-s"></span></label></div>
       </div>
     </div>
@@ -217,15 +237,23 @@ function showToast(m){const t=document.getElementById('toast');t.textContent=m;t
 // ─── COMPANIES ────────────────────────────────────────────────
 function openAddCompany(){
   document.getElementById('coName').value='';
-  ['hEmail','hJC','hEDR'].forEach(x=>document.getElementById(x).checked=true);
-  document.getElementById('hCS').checked=false;
+  ['hEmail','hJC'].forEach(x=>document.getElementById(x).checked=true);
+  document.getElementById('hEDRnone').checked=true;
   document.getElementById('hZS').checked=false;
   document.getElementById('addModal').classList.add('open');
 }
 function saveCompany(){
   const name=document.getElementById('coName').value.trim();
   if(!name)return alert('Enter company name');
-  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked,hasCS:document.getElementById('hCS').checked,hasZS:document.getElementById('hZS').checked});
+  const edrType=document.querySelector('input[name="edrType"]:checked')?.value||'none';
+  companies.push({id:Date.now().toString(),name,
+    hasEmail:document.getElementById('hEmail').checked,
+    hasJC:document.getElementById('hJC').checked,
+    hasEDR:edrType==='cp',
+    hasCS:edrType==='cs',
+    hasZS:document.getElementById('hZS').checked,
+    edrType
+  });
   saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
 }
 function deleteCompany(id){
