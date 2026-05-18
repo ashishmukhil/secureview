@@ -186,6 +186,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="hEmail" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="hJC" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>🛡️ EDR / Checkpoint</label><label class="tgl"><input type="checkbox" id="hEDR" checked><span class="tgl-s"></span></label></div>
+        <div class="tg-item"><label>🦅 CrowdStrike EDR</label><label class="tgl"><input type="checkbox" id="hCS"><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>🔒 Zscaler (Device Export CSV)</label><label class="tgl"><input type="checkbox" id="hZS"><span class="tgl-s"></span></label></div>
       </div>
     </div>
@@ -217,13 +218,14 @@ function showToast(m){const t=document.getElementById('toast');t.textContent=m;t
 function openAddCompany(){
   document.getElementById('coName').value='';
   ['hEmail','hJC','hEDR'].forEach(x=>document.getElementById(x).checked=true);
+  document.getElementById('hCS').checked=false;
   document.getElementById('hZS').checked=false;
   document.getElementById('addModal').classList.add('open');
 }
 function saveCompany(){
   const name=document.getElementById('coName').value.trim();
   if(!name)return alert('Enter company name');
-  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked,hasZS:document.getElementById('hZS').checked});
+  companies.push({id:Date.now().toString(),name,hasEmail:document.getElementById('hEmail').checked,hasJC:document.getElementById('hJC').checked,hasEDR:document.getElementById('hEDR').checked,hasCS:document.getElementById('hCS').checked,hasZS:document.getElementById('hZS').checked});
   saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
 }
 function deleteCompany(id){
@@ -236,7 +238,7 @@ function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compa
 function renderCo(){
   document.getElementById('coGrid').innerHTML=companies.map(c=>{
     const h=history[c.id]||[];
-    const icons=[c.hasEmail,c.hasJC,c.hasEDR,c.hasZS].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️','🔒'][i]}</span>`).join('');
+    const icons=[c.hasEmail,c.hasJC,c.hasEDR,c.hasCS,c.hasZS].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️','🦅','🔒'][i]}</span>`).join('');
     return `<div class="co-card ${activeId===c.id?'active':''}" onclick="selectCompany('${c.id}')">
       <div class="cdel" onclick="event.stopPropagation();deleteCompany('${c.id}')">✕</div>
       <div class="cn">${c.name}</div>
@@ -307,6 +309,7 @@ function getSlots(c){
   if(c.hasEmail)sl.push({key:'email',label:'Email Active Users',icon:'📧',desc:'CSV: user_name, user_email'});
   if(c.hasJC){sl.push({key:'jcUsers',label:'JumpCloud Users',icon:'👤',desc:'JC Users CSV'});sl.push({key:'jcDevices',label:'JC Devices',icon:'💻',desc:'JC Devices CSV'});sl.push({key:'userDevice',label:'Users ↔ Devices',icon:'🔗',desc:'JC mapping CSV'});}
   if(c.hasEDR)sl.push({key:'edr',label:'EDR / Checkpoint',icon:'🛡️',desc:'XLSX or CSV'});
+  if(c.hasCS)sl.push({key:'crowdstrike',label:'CrowdStrike EDR',icon:'🦅',desc:'Hosts CSV export'});
   if(c.hasZS)sl.push({key:'zscaler',label:'Zscaler Device Export',icon:'🔒',desc:'Device Export CSV'});
   return sl;
 }
@@ -346,6 +349,7 @@ async function runAnalysis(){
     if(uploadedFiles.userDevice)data.userDevice=await rCSV(uploadedFiles.userDevice);
     if(uploadedFiles.edr){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
     if(uploadedFiles.zscaler)data.zscaler=await rCSV(uploadedFiles.zscaler);
+    if(uploadedFiles.crowdstrike)data.crowdstrike=await rCSV(uploadedFiles.crowdstrike);
     sp(50);
     const result=analyze(data,c);sp(80);
     currentReport=result;
@@ -522,6 +526,94 @@ function analyze(data,company){
     if(result.stats.zsRemovePending>0)result.alerts.push({type:'info',text:`${result.stats.zsRemovePending} Zscaler users Remove Pending`,sub:''});
   }
 
+  // ── CROWDSTRIKE ANALYSIS ──────────────────────────────────────
+  if(data.crowdstrike&&data.crowdstrike.length){
+    const GENERIC_CS_GROUPS=new Set(['Newly added Server and Devices']);
+    const parseCSGroups=str=>{
+      if(!str||str.trim()==='')return'N/A';
+      const groups=str.split(',').map(g=>g.trim()).filter(g=>g&&!GENERIC_CS_GROUPS.has(g));
+      return groups.length>0?groups.join(', '):'—';
+    };
+
+    const csDevs=data.crowdstrike.map(r=>({
+      name:normD(r['Hostname']||''),
+      lastSeen:r['Last Seen']||'',
+      platform:r['Platform']||'',
+      osVersion:r['OS Version']||'',
+      hostGroups:parseCSGroups(r['Host Groups']||''),
+      lastUser:r['Last Logged In User Account']||'',
+      sensorVersion:r['Sensor Version']||'',
+      preventionPolicy:r['Prevention Policy']||'',
+      _raw:r
+    })).filter(r=>r.name);
+
+    const csDevSet=new Set(csDevs.map(d=>d.name));
+
+    // Days offline calculation
+    csDevs.forEach(d=>{
+      if(d.lastSeen){
+        try{
+          const diff=Math.floor((new Date()-new Date(d.lastSeen))/86400000);
+          d.daysOffline=diff;
+          if(diff===0)d.offlineStatus='🟢 Online Today';
+          else if(diff<=7)d.offlineStatus=`🟡 ${diff}d`;
+          else if(diff<=30)d.offlineStatus=`🟠 ${diff}d`;
+          else d.offlineStatus=`🔴 ${diff}d`;
+        }catch(e){d.daysOffline=null;d.offlineStatus='Unknown';}
+      }
+    });
+
+    // JC devices vs CrowdStrike
+    const csRows=jcDevices.map(d=>{
+      const cs=csDevs.find(c=>c.name===d.hostname);
+      return{
+        'Display Name':d.displayName,
+        'Hostname':d.hostname,
+        'In JC':'✅',
+        'CrowdStrike':cs?'✅ Yes':'❌ No',
+        'Last CS Seen':cs?String(cs.lastSeen).substring(0,10):'N/A',
+        'CS Offline':cs?cs.offlineStatus:'N/A',
+        'Host Groups':cs?cs.hostGroups:'N/A',
+        'Last User':cs?cs.lastUser:'N/A',
+        'Sensor Version':cs?cs.sensorVersion:'N/A',
+        _noCS:!cs,_key:d.hostname
+      };
+    });
+
+    // CS devices not in JC
+    const csOnlyRows=csDevs.filter(d=>!jcDevSet.has(d.name)).map(d=>({
+      'Display Name':d.name,'Hostname':d.name,
+      'In JC':'❌ No','CrowdStrike':'✅ Yes',
+      'Last CS Seen':String(d.lastSeen).substring(0,10)||'N/A',
+      'CS Offline':d.offlineStatus||'N/A',
+      'Host Groups':d.hostGroups,'Last User':d.lastUser,
+      'Sensor Version':d.sensorVersion,
+      _notInJC:true,_key:d.name
+    }));
+
+    result.tables.csStatus={
+      title:'🦅 CrowdStrike Status',
+      rows:[...csRows,...csOnlyRows],
+      cols:['Display Name','Hostname','In JC','CrowdStrike','Last CS Seen','CS Offline','Host Groups','Last User','Sensor Version']
+    };
+
+    const csNoCS=csRows.filter(r=>r._noCS);
+    if(csNoCS.length)result.tables.csNotFound={
+      title:'JC Devices — No CrowdStrike',
+      rows:csNoCS.map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],Status:'JC Active — No CS Agent',_key:r._key})),
+      cols:['Display Name','Hostname','Status']
+    };
+
+    result.stats.csTotal=csDevs.length;
+    result.stats.csInJC=csRows.filter(r=>!r._noCS).length;
+    result.stats.csNotInJC=csOnlyRows.length;
+    result.stats.jcNoCS=csNoCS.length;
+    result.stats.csOfflineGT7=csDevs.filter(d=>d.daysOffline!==null&&d.daysOffline>7).length;
+
+    if(csNoCS.length>0)result.alerts.push({type:'critical',text:`${csNoCS.length} JC devices without CrowdStrike`,sub:csNoCS.slice(0,3).map(r=>r['Display Name']).join(', ')+(csNoCS.length>3?'...':'')});
+    if(csOnlyRows.length>0)result.alerts.push({type:'warning',text:`${csOnlyRows.length} CrowdStrike devices not in JumpCloud`,sub:csOnlyRows.slice(0,3).map(r=>r['Hostname']).join(', ')+(csOnlyRows.length>3?'...':'')});
+  }
+
   // ── MASTER SUMMARY — All tools per email (Email + JC union) ──
   const allUsersMap={};
   emailUsers.forEach(u=>{allUsersMap[u.email]={name:u.name,email:u.email,inEmail:true};});
@@ -669,6 +761,26 @@ function analyze(data,company){
         }
       }
 
+      // CrowdStrike status
+      let csStatus='N/A';
+      if(data.crowdstrike&&data.crowdstrike.length){
+        const GENERIC_CS_GROUPS=new Set(['Newly added Server and Devices']);
+        if(jcUser){
+          const ud=udMap.filter(m=>m.username===jcUser.username);
+          if(ud.length){
+            const devHost=ud[0].device;
+            const csDev=data.crowdstrike.find(r=>normD(r['Hostname']||'')===devHost);
+            if(csDev){
+              const lastSeen=csDev['Last Seen']||'';
+              let dOff=null;
+              if(lastSeen){try{dOff=Math.floor((new Date()-new Date(lastSeen))/86400000);}catch(e){}}
+              const icon=dOff===null?'✅':dOff===0?'✅':dOff<=7?'🟡':dOff<=30?'🟠':'🔴';
+              csStatus=`${icon} Active`;
+            } else csStatus='❌ No Agent';
+          } else csStatus='❌ No Device';
+        } else csStatus='⚫ No JC';
+      }
+
       const overallOk=inJC&&edrStatus==='✅ Yes'&&zsState==='Registered'&&userMFA==='✅ Enrolled'&&(daysOff===null||daysOff<=7);
       return{
         'Name':u.name,'Email':u.email,
@@ -676,7 +788,8 @@ function analyze(data,company){
         'In JumpCloud':inJC?'✅ Yes':'❌ No',
         'JC Device':deviceName,
         'Offline Status':offlineStatus,
-        'EDR':edrStatus,
+        'EDR (CP)':edrStatus,
+        'CrowdStrike':csStatus,
         'Location/Group':virtualGroup,
         'Zscaler':zsStatus,
         'Policy Status':policyStatus,
@@ -706,7 +819,7 @@ function analyze(data,company){
       masterSummary:{
         title:'🔍 Master Summary',
         rows:masterRows,
-        cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status','EDR','Location/Group','Zscaler','Policy Status','User MFA','Device MFA','Overall']
+        cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status','EDR (CP)','CrowdStrike','Location/Group','Zscaler','Policy Status','User MFA','Device MFA','Overall']
       },
       ...result.tables
     };
@@ -860,6 +973,8 @@ function renderDashboard(result,c){
     s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
     s.zsRegistered!==undefined?mkCard(s.zsNotFound>0?'co':'cg',s.zsRegistered,'ZS Registered',`${s.zsUnregistered||0} unregistered`,'zsRegistered',false):'',
     s.zsNotFound!==undefined&&s.zsNotFound>0?mkCard('cr',s.zsNotFound,'No Zscaler','Not in ZS','zsNotFound',true):'',
+    s.csInJC!==undefined?mkCard(s.jcNoCS>0?'co':'cg',s.csInJC,'CrowdStrike',`${s.jcNoCS||0} JC w/o CS`,'csInJC',false):'',
+    s.csNotInJC!==undefined&&s.csNotInJC>0?mkCard('cy',s.csNotInJC,'CS Not in JC','Investigate','csNotInJC',true):'',
   ].filter(Boolean);
 
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
