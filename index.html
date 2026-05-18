@@ -449,6 +449,7 @@ function analyze(data,company){
     result.stats.totalDevices=jcDevices.length;result.stats.devicesWithUser=rows.filter(r=>!r._noUser).length;result.stats.devicesNoUser=rows.filter(r=>r._noUser).length;
     result.stats.devicesWithEDR=rows.filter(r=>!r._noEDR).length;result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
     result.stats.edrNotInJC=edrOnly.length;
+    result.stats.edrFileUploaded=!!(data.edr&&data.edr.length); // flag for UI
     result.stats.offlineGT7=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>7).length;
     result.stats.offlineGT30=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>30).length;
     result.stats.onlineToday=rows.filter(r=>r['Days Offline']===0).length;
@@ -976,8 +977,8 @@ function renderDashboard(result,c){
     s.totalEmailUsers!==undefined?mkCard('cb',s.totalEmailUsers,'Email Users',`${s.usersInJC||0} in JumpCloud`,'totalEmailUsers',false):'',
     s.usersNotInJC!==undefined?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Not in JumpCloud',s.usersNotInJC>0?'Action needed':'All mapped ✅','usersNotInJC',true):'',
     s.totalDevices!==undefined?mkCard('cp',s.totalDevices,'JC Devices',`${s.devicesWithUser||0} user-mapped`,'totalDevices',false):'',
-    s.devicesNoEDR!==undefined?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
-    s.edrNotInJC!==undefined?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
+    s.devicesNoEDR!==undefined&&s.edrFileUploaded?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR (CP)',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
+    s.edrNotInJC!==undefined&&s.edrFileUploaded?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
     s.offlineGT7!==undefined?mkCard(s.offlineGT7>0?'cy':'cg',s.offlineGT7,'Offline >7 Days',`${s.offlineGT30||0} offline >30d`,'offlineGT7',true):'',
     s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
     s.zsRegistered!==undefined?mkCard(s.zsNotFound>0?'co':'cg',s.zsRegistered,'ZS Registered',`${s.zsUnregistered||0} unregistered`,'zsRegistered',false):'',
