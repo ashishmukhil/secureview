@@ -233,7 +233,7 @@ function deleteCompany(id){
   companies=companies.filter(c=>c.id!==id);delete history[id];saveCo();saveHi();
   if(activeId===id){activeId=null;currentReport=null;}renderCo();renderMain();
 }
-function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compareWith=null;renderCo();renderMain();}
+function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compareWith=null;renderCo();renderMain();showToast('🏢 Company switched — please upload fresh files');}
 
 function renderCo(){
   document.getElementById('coGrid').innerHTML=companies.map(c=>{
@@ -810,8 +810,8 @@ function analyze(data,company){
       };
     });
 
-    // EDR-only devices
-    if(edrDevs.length){
+    // EDR-only devices — sirf tab add karo jab Checkpoint file upload ho
+    if(data.edr&&data.edr.length&&edrDevs.length){
       edrDevs.filter(d=>!jcDevSet.has(d.name)).forEach(d=>{
         masterRows.push({
           'Name':'Unknown User','Email':'N/A',
