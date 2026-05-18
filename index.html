@@ -1202,18 +1202,31 @@ async function driveLoadAllHistory(){
     }
     if(loaded>0){
       saveHi();
-      // Auto-create companies from Drive history if not in localStorage
+      // Auto-create companies from Drive history — check by ID AND name to avoid duplicates
       let companiesAdded=0;
       for(const co of(data.companies||[])){
-        if(!companies.find(c=>c.id===co.companyId)){
+        const existsById=companies.find(c=>c.id===co.companyId);
+        const existsByName=companies.find(c=>c.name.toLowerCase()===( co.companyName||'').toLowerCase());
+        if(!existsById&&!existsByName){
           companies.push({
             id:co.companyId,
             name:co.companyName||co.companyId,
-            hasEmail:true,hasJC:true,hasEDR:true,hasZS:false
+            hasEmail:true,hasJC:true,hasEDR:false,hasCS:false,hasZS:false,edrType:'none'
           });
+          companiesAdded++;
+        } else if(!existsById&&existsByName){
+          // Same name exists with different ID — update ID to match Drive
+          existsByName.id=co.companyId;
           companiesAdded++;
         }
       }
+      // Remove any duplicate companies by name (keep first occurrence)
+      const seen=new Set();
+      companies=companies.filter(c=>{
+        const key=c.name.toLowerCase();
+        if(seen.has(key))return false;
+        seen.add(key);return true;
+      });
       if(companiesAdded>0)saveCo();
       updateDriveStatus('ok',`☁️ ${loaded} companies loaded`);
       showToast(`☁️ ${loaded} companies load ho gaye!`);
