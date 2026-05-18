@@ -1256,6 +1256,25 @@ function toggleDrive(){
   else{updateDriveStatus('off','Drive sync off');showToast('Drive sync OFF');}
 }
 
+function cleanDuplicateCompanies(){
+  const before=companies.length;
+  const seen=new Set();
+  companies=companies.filter(c=>{
+    const key=c.name.toLowerCase().trim();
+    if(seen.has(key))return false;
+    seen.add(key);return true;
+  });
+  const removed=before-companies.length;
+  if(removed>0){
+    saveCo();
+    if(activeId&&!companies.find(c=>c.id===activeId)){activeId=null;currentReport=null;}
+    renderCo();renderMain();
+    showToast(`🧹 ${removed} duplicate${removed>1?'s':''} removed!`);
+  } else {
+    showToast('✅ No duplicates found!');
+  }
+}
+
 function renderDriveBar(){
   const el=document.getElementById('driveBar');if(!el)return;
   const savedUrl=localStorage.getItem('sv_drive_url')||'';
@@ -1271,7 +1290,7 @@ function renderDriveBar(){
     <label class="tgl"><input type="checkbox" ${driveEnabled?'checked':''} onchange="toggleDrive()"><span class="tgl-s"></span></label>
     <span id="driveStatus" style="font-size:11px;font-family:monospace;min-width:160px">${driveEnabled?'<span style="color:var(--green)">●</span> Enabled':'<span style="color:var(--muted)">●</span> Off'}</span>
     ${driveEnabled?`<button class="ex-btn" onclick="driveLoadAllHistory()" style="padding:5px 11px;font-size:11px">🔄 Sync Now</button>`:''}
-  </div>
+    <button class="ex-btn" onclick="cleanDuplicateCompanies()" style="padding:5px 11px;font-size:11px;border-color:var(--yellow);color:var(--yellow)">🧹 Clean Dupes</button>
   <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <span style="font-size:10px;color:var(--muted);font-family:monospace;white-space:nowrap">Apps Script URL:</span>
     <input id="driveUrlInput" type="text"
