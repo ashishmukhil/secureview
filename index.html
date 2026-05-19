@@ -1099,21 +1099,175 @@ function resetReport(){currentReport=null;uploadedFiles={};compareWith=null;rend
 // ─── EXCEL EXPORT ─────────────────────────────────────────────
 function exportExcel(){
   const r=currentReport;if(!r)return;
-  const wb=XLSX.utils.book_new();const now=new Date();const s=r.stats;
-  const sum=[['IT Security Report — '+r.company],['Generated: '+now.toLocaleString('en-IN')],[],['METRIC','VALUE','STATUS']];
-  if(s.totalEmailUsers!==undefined){sum.push(['Email Users',s.totalEmailUsers,'']);sum.push(['In JumpCloud',s.usersInJC,s.usersInJC===s.totalEmailUsers?'OK':'CHECK']);sum.push(['Not in JumpCloud',s.usersNotInJC,s.usersNotInJC>0?'ACTION':'OK']);}
-  if(s.totalDevices!==undefined){sum.push([]);sum.push(['JC Devices',s.totalDevices,'']);sum.push(['Devices w/ User',s.devicesWithUser,'']);sum.push(['No User Mapped',s.devicesNoUser,s.devicesNoUser>0?'Check':'OK']);sum.push(['No EDR',s.devicesNoEDR,s.devicesNoEDR>0?'UNPROTECTED':'OK']);sum.push(['EDR Not in JC',s.edrNotInJC,s.edrNotInJC>0?'INVESTIGATE':'OK']);sum.push(['Offline >7d',s.offlineGT7,s.offlineGT7>0?'ALERT':'OK']);sum.push(['Offline >30d',s.offlineGT30,s.offlineGT30>0?'CRITICAL':'OK']);}
-  const ws0=XLSX.utils.aoa_to_sheet(sum);ws0['!cols']=[{wch:35},{wch:15},{wch:20}];XLSX.utils.book_append_sheet(wb,ws0,'Summary');
+  const wb=XLSX.utils.book_new();
+  const now=new Date();const s=r.stats;
+  const co=r.company;
+
+  // ── COLOR HELPERS ──
+  const DBLUE='1F3864',MBLUE='2E75B6',GRN='70AD47',RED='C00000',ORG='ED7D31';
+  const YLW='FFC000',WHT='FFFFFF',LGR='F5F5F5',DRD='FFD7D7',DGN='E2EFDA',DOR='FCE4D6',DYL='FFF2CC';
+
+  function hdr(bg,fc='FFFFFF',bold=true,sz=10){return {font:{name:'Arial',bold,sz,color:{rgb:fc}},fill:{fgColor:{rgb:bg},patternType:'solid'},alignment:{horizontal:'center',vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:'CCCCCC'}},bottom:{style:'thin',color:{rgb:'CCCCCC'}},left:{style:'thin',color:{rgb:'CCCCCC'}},right:{style:'thin',color:{rgb:'CCCCCC'}}}};}
+  function cel(bg='FFFFFF',fc='000000',bold=false,sz=9,halign='left'){return {font:{name:'Arial',bold,sz,color:{rgb:fc}},fill:{fgColor:{rgb:bg},patternType:'solid'},alignment:{horizontal:halign,vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:'DDDDDD'}},bottom:{style:'thin',color:{rgb:'DDDDDD'}},left:{style:'thin',color:{rgb:'DDDDDD'}},right:{style:'thin',color:{rgb:'DDDDDD'}}}};}
+  function setStyle(ws,ref,style){if(!ws[ref])ws[ref]={t:'z'};ws[ref].s=style;}
+  function setCell(ws,ref,val,style){ws[ref]={v:val,t:typeof val==='number'?'n':'s',s:style};}
+  function mergeCells(ws,s,e){if(!ws['!merges'])ws['!merges']=[];ws['!merges'].push(XLSX.utils.decode_range(`${s}:${e}`));}
+  function colLetter(n){let r='';while(n>0){r=String.fromCharCode(65+(n-1)%26)+r;n=Math.floor((n-1)/26);}return r;}
+
+  const statusStyle=(val,bg)=>{
+    const v=String(val||'');
+    let fc='000000',bold=false;
+    if(v.includes('Yes')||v.includes('OK')||v.includes('Registered')||v.includes('Enrolled')||v.includes('Active')||v.includes('On ')){fc=GRN;bold=true;}
+    else if(v.includes('No')||v.includes('Check')||v.includes('Not Found')||v.includes('Not Enrolled')||v.includes('Off')){fc=RED;bold=true;}
+    else if(v.includes('Unregistered')||v.includes('Pending')||v.includes('7d')||v.includes('30d')){fc=ORG;bold=true;}
+    return cel(bg,fc,bold,9,'center');
+  };
+
+  // ════ SHEET 1: DASHBOARD ════
+  const wsDash={};
+  const dashRange={s:{r:0,c:0},e:{r:60,c:9}};
+
+  // Title row
+  mergeCells(wsDash,'A1','J1');
+  setCell(wsDash,'A1',`IT SECURITY DASHBOARD  —  ${co}`,hdr(DBLUE,'FFFFFF',true,16));
+  wsDash['!rows']=[{hpt:45},{hpt:22},{hpt:12}];
+
+  // Subtitle
+  mergeCells(wsDash,'A2','J2');
+  setCell(wsDash,'A2',`Generated: ${now.toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'})}     |     Report Tool: SecureView`,
+    {...cel('263C5A','AAAAAA',false,10,'center')});
+
+  // STAT CARD helper — writes 3 rows x 2 cols
+  const CARD_COLS=[[2,3],[5,6],[8,9]]; // B-C, E-F, H-I
+  const writeCard=(rowStart,colPair,label,value,sub,bgColor,valColor)=>{
+    const [c1,c2]=colPair;
+    const r1=`${colLetter(c1)}${rowStart}`,r1e=`${colLetter(c2)}${rowStart}`;
+    const r2=`${colLetter(c1)}${rowStart+1}`,r2e=`${colLetter(c2)}${rowStart+1}`;
+    const r3=`${colLetter(c1)}${rowStart+2}`,r3e=`${colLetter(c2)}${rowStart+2}`;
+    mergeCells(wsDash,r1,r1e); setCell(wsDash,r1,label,hdr(bgColor));
+    mergeCells(wsDash,r2,r2e); setCell(wsDash,r2,value,{...cel(WHT,valColor||bgColor,true,28,'center')});
+    mergeCells(wsDash,r3,r3e); setCell(wsDash,r3,sub,cel('F8F8F8','888888',false,8,'center'));
+  };
+
+  // Row 1 cards (rows 4-6)
+  const tot=s.totalEmailUsers||s.totalDevices||0;
+  writeCard(4,CARD_COLS[0],'Total Users',(s.totalEmailUsers||0)+' users',`${s.usersInJC||0} in JC | ${s.usersNotInJC||0} not in JC`,MBLUE);
+  writeCard(4,CARD_COLS[1],'Not in JumpCloud',s.usersNotInJC||0,`${s.usersInJC||0} users enrolled`,(s.usersNotInJC||0)>0?RED:GRN);
+  writeCard(4,CARD_COLS[2],'No EDR',s.devicesNoEDR||s.jcNoCS||0,`${s.devicesWithEDR||s.csInJC||0} protected`,(s.devicesNoEDR||s.jcNoCS||0)>0?RED:GRN);
+
+  // Row 2 cards (rows 8-10)
+  writeCard(8,CARD_COLS[0],'ZS Registered',s.zsRegistered||0,`${s.zsUnregistered||0} unreg | ${s.zsNotFound||0} N/A`,GRN);
+  writeCard(8,CARD_COLS[1],'MFA Enrolled',s.zsRegistered!==undefined?(s.totalEmailUsers||0)-(s.zsNotFound||0):0,`Check MFA column`,(s.usersNotInJC||0)>0?ORG:GRN);
+  writeCard(8,CARD_COLS[2],'Offline >7 Days',s.offlineGT7||0,`${s.offlineGT30||0} critical >30d`,(s.offlineGT30||0)>0?RED:(s.offlineGT7||0)>0?ORG:GRN);
+
+  // Row 3 cards (rows 12-14)
+  writeCard(12,CARD_COLS[0],'Online Today',s.onlineToday||0,'Active devices',GRN);
+  writeCard(12,CARD_COLS[1],'JC Devices',s.totalDevices||0,`${s.devicesWithUser||0} user-mapped`,MBLUE);
+  writeCard(12,CARD_COLS[2],'CrowdStrike',s.csInJC||0,`${s.jcNoCS||0} without CS`,(s.jcNoCS||0)>0?ORG:GRN);
+
+  // Summary table (row 17 onwards)
+  const sumStartRow=17;
+  mergeCells(wsDash,`A${sumStartRow}`,`C${sumStartRow}`);
+  setCell(wsDash,`A${sumStartRow}`,'METRIC',hdr(DBLUE));
+  setCell(wsDash,`B${sumStartRow}`,'VALUE',hdr(DBLUE));
+  setCell(wsDash,`C${sumStartRow}`,'STATUS',hdr(DBLUE));
+
+  const sumRows=[];
+  if(s.totalEmailUsers!==undefined){
+    sumRows.push(['Total Email Users',s.totalEmailUsers,'']);
+    sumRows.push(['In JumpCloud',s.usersInJC,s.usersNotInJC===0?'OK':'CHECK']);
+    sumRows.push(['Not in JumpCloud',s.usersNotInJC,s.usersNotInJC>0?'ACTION NEEDED':'OK']);
+  }
+  if(s.totalDevices!==undefined){
+    sumRows.push(['','','']);
+    sumRows.push(['JC Devices',s.totalDevices,'']);
+    sumRows.push(['No EDR',s.devicesNoEDR,s.devicesNoEDR>0?'UNPROTECTED':'OK']);
+    sumRows.push(['EDR Not in JC',s.edrNotInJC,s.edrNotInJC>0?'INVESTIGATE':'OK']);
+    sumRows.push(['Offline >7d',s.offlineGT7,s.offlineGT7>0?'ALERT':'OK']);
+    sumRows.push(['Offline >30d',s.offlineGT30,s.offlineGT30>0?'CRITICAL':'OK']);
+  }
+  if(s.zsRegistered!==undefined){
+    sumRows.push(['','','']);
+    sumRows.push(['ZS Registered',s.zsRegistered,'']);
+    sumRows.push(['ZS Unregistered',s.zsUnregistered,s.zsUnregistered>0?'CHECK':'OK']);
+    sumRows.push(['ZS Not Found',s.zsNotFound,s.zsNotFound>0?'MISSING':'OK']);
+  }
+  if(s.csInJC!==undefined){
+    sumRows.push(['','','']);
+    sumRows.push(['CS In JC',s.csInJC,'']);
+    sumRows.push(['JC Without CS',s.jcNoCS,s.jcNoCS>0?'NO AGENT':'OK']);
+    sumRows.push(['CS Not in JC',s.csNotInJC,s.csNotInJC>0?'INVESTIGATE':'OK']);
+  }
+
+  sumRows.forEach((row,i)=>{
+    const ri=sumStartRow+1+i;
+    const bg=i%2===0?WHT:LGR;
+    const [a,b,c]=row;
+    setCell(wsDash,`A${ri}`,a,cel(bg,'333333',false,9));
+    setCell(wsDash,`B${ri}`,b,cel(bg,'1F3864',true,10,'center'));
+    const stbg=String(c).includes('ACTION')||String(c).includes('UNPROTECTED')||String(c).includes('CRITICAL')?DRD:
+               String(c).includes('OK')?DGN:
+               String(c).includes('ALERT')||String(c).includes('CHECK')||String(c).includes('INVESTIGATE')?DYL:bg;
+    const stfc=String(c).includes('ACTION')||String(c).includes('UNPROTECTED')||String(c).includes('CRITICAL')?RED:
+               String(c).includes('OK')?GRN:
+               String(c).includes('ALERT')||String(c).includes('CHECK')?ORG:'000000';
+    setCell(wsDash,`C${ri}`,c,cel(stbg,stfc,true,9,'center'));
+  });
+
+  wsDash['!cols']=[{wch:3},{wch:20},{wch:16},{wch:3},{wch:20},{wch:16},{wch:3},{wch:20},{wch:16},{wch:3}];
+  wsDash['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:sumStartRow+sumRows.length+2,c:9}});
+  XLSX.utils.book_append_sheet(wb,wsDash,'Dashboard');
+
+  // ════ DATA SHEETS ════
+  const STATUS_COLS=new Set(['In JumpCloud','In JC','EDR','EDR (CP)','CrowdStrike','Zscaler','ZS Status','User MFA','Device MFA','Overall','Status','CrowdStrike']);
+
   Object.entries(r.tables).forEach(([,t])=>{
     if(!t.rows.length)return;
-    const cl=t.rows.map(row=>{const o={};t.cols.forEach(c=>{o[c]=row[c]!==undefined?String(row[c]).replace(/[✅❌🟢🟡🟠🔴⚠️⚫👁🔍🔒]/g,'').trim():'';});return o;});
-    const ws=XLSX.utils.json_to_sheet(cl,{header:t.cols});ws['!cols']=t.cols.map(()=>({wch:22}));
-    // Excel sheet name: max 31 chars, no special chars : \ / ? [ ] *
-    const sheetName=t.title.replace(/[:\\\/?[\]*]/g,'').replace(/[🔍🔒👁⚠️✅❌🟢🟡🟠🔴⚫]/g,'').trim().substring(0,31);
-    XLSX.utils.book_append_sheet(wb,ws,sheetName||'Sheet');
+    const sheetName=t.title.replace(/[:\\\/?[\]*🔍🔒👁⚠️✅❌🟢🟡🟠🔴⚫🦅🛡️]/g,'').trim().substring(0,31)||'Sheet';
+    const ws={};
+    const cols=t.cols;
+
+    // Title row
+    mergeCells(ws,'A1',`${colLetter(cols.length)}1`);
+    const titleBg=sheetName.toLowerCase().includes('not')||sheetName.toLowerCase().includes('no ')||sheetName.toLowerCase().includes('edr')?RED:sheetName.toLowerCase().includes('master')?DBLUE:MBLUE;
+    setCell(ws,'A1',t.title.replace(/[🔍🔒👁⚠️✅❌🟢🟡🟠🔴⚫🦅🛡️]/g,'').trim(),hdr(titleBg,'FFFFFF',true,13));
+
+    // Header row
+    cols.forEach((col,ci)=>{
+      setCell(ws,`${colLetter(ci+1)}2`,col,hdr(MBLUE));
+    });
+
+    // Data rows
+    t.rows.forEach((row,ri)=>{
+      const overall=String(row['Overall']||'');
+      const rowBg=overall.includes('Check')?DYL:(ri%2===0?WHT:LGR);
+
+      cols.forEach((col,ci)=>{
+        const raw=row[col];
+        const val=raw!==undefined?String(raw).replace(/[✅❌🟢🟡🟠🔴⚠️⚫]/g,'').trim():'';
+        const ref=`${colLetter(ci+1)}${ri+3}`;
+        if(STATUS_COLS.has(col)){
+          setCell(ws,ref,val,statusStyle(val,rowBg));
+        } else if(col==='Days Offline'&&typeof raw==='number'){
+          const dbg=raw>30?DRD:raw>7?DOR:raw>0?DYL:DGN;
+          setCell(ws,ref,raw,cel(dbg,'000000',false,9,'center'));
+        } else {
+          setCell(ws,ref,val,cel(rowBg,'000000',false,9));
+        }
+      });
+    });
+
+    // Col widths
+    const colWidths={Name:20,Email:32,Hostname:22,'Display Name':22,'Mapped User':22,'JC Device':20,'Offline Status':14,'Days Offline':14,'Last Seen':14,Status:18,Overall:12,EDR:10,'EDR (CP)':10,CrowdStrike:14,Zscaler:18,'In JumpCloud':14,'In JC':10,'In Email':10,'User MFA':14,'Device MFA':12,'Policy Status':14,'Location/Group':20,'All States':20,'Last Seen ZIA':18,'ZCC Version':16,'Host Groups':20,'Last User':18,'Sensor Version':14};
+    ws['!cols']=cols.map(c=>({wch:colWidths[c]||18}));
+    ws['!rows']=[{hpt:30},{hpt:20},...t.rows.map(()=>({hpt:15}))];
+    ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:t.rows.length+2,c:cols.length-1}});
+    XLSX.utils.book_append_sheet(wb,ws,sheetName);
   });
-  XLSX.writeFile(wb,`${r.company.replace(/[^a-zA-Z0-9]/g,'_')}_Report_${now.toISOString().slice(0,10)}.xlsx`);
-  showToast('📥 Excel Downloaded!');
+
+  const fname=`${co.replace(/[^a-zA-Z0-9]/g,'_')}_Security_Report_${now.toISOString().slice(0,10)}.xlsx`;
+  XLSX.writeFile(wb,fname);
+  showToast('📥 Beautiful Excel Downloaded!');
 }
 
 function exportDiffExcel(){
