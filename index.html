@@ -1323,6 +1323,8 @@ async function driveLoadAllHistory(){
   if(!driveEnabled)return;
   const url=localStorage.getItem('sv_drive_url')||'';
   if(!url){updateDriveStatus('error','⚠️ URL not set');showToast('⚠️ Apps Script URL nahi hai!');return;}
+  // Ensure driveBar is rendered so driveStatus element exists
+  try{renderDriveBar();}catch(e){}
   try{
     updateDriveStatus('syncing','☁️ Loading...');
     const data=await driveCall({action:'listCompanies'});
