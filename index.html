@@ -317,7 +317,12 @@ function saveEditCompany(){
 function deleteCompany(id){
   if(!confirm('Delete company + all history?'))return;
   companies=companies.filter(c=>c.id!==id);delete history[id];saveCo();saveHi();
+  // Drive se bhi delete karo
+  if(driveEnabled){
+    driveCall({action:'deleteCompany',companyId:id}).catch(e=>console.log('Drive delete:',e));
+  }
   if(activeId===id){activeId=null;currentReport=null;}renderCo();renderMain();
+  showToast('🗑️ Company deleted!');
 }
 function selectCompany(id){activeId=id;currentReport=null;uploadedFiles={};compareWith=null;renderCo();renderMain();showToast('🏢 Company switched — please upload fresh files');}
 
