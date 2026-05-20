@@ -38,6 +38,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .co-card .cn{font-weight:600;font-size:13px;color:var(--text);margin-bottom:4px}
 .co-card .cdel{position:absolute;top:7px;right:7px;width:19px;height:19px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:4px;color:var(--red);font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:.2s}
 .co-card:hover .cdel{opacity:1}
+.co-card:hover .cedit{opacity:1!important}
 .add-co{background:transparent;border:1px dashed var(--border);border-radius:10px;padding:13px;cursor:pointer;color:var(--muted);font-size:12px;font-family:var(--font-sans);transition:.2s;display:flex;align-items:center;justify-content:center;gap:7px}
 .add-co:hover{border-color:var(--accent);color:var(--accent)}
 .mo-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
@@ -218,7 +219,30 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="mo-overlay" id="editModal">
+  <div class="mo">
+    <h3>// EDIT COMPANY</h3>
+    <div class="mf"><label>Company Name</label><input id="editCoName" placeholder="Company name"/></div>
+    <div class="mf"><label>Data Sources</label>
+      <div class="tg-grp">
+        <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="editHEmail"><span class="tgl-s"></span></label></div>
+        <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="editHJC"><span class="tgl-s"></span></label></div>
+        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select One)</label>
+          <div style="display:flex;flex-direction:column;gap:6px;background:rgba(0,212,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px">
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHEDRnone" value="none" style="accent-color:var(--accent)"><span>⚫ No EDR</span></label></div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHEDR" value="cp" style="accent-color:var(--accent)"><span>🛡️ Checkpoint EDR</span></label></div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHCS" value="cs" style="accent-color:var(--accent)"><span>🦅 CrowdStrike EDR</span></label></div>
+          </div>
+        </div>
+        <div class="tg-item"><label>🔒 Zscaler (Device Export CSV)</label><label class="tgl"><input type="checkbox" id="editHZS"><span class="tgl-s"></span></label></div>
+      </div>
+    </div>
+    <div class="mo-acts">
+      <button class="btn btn-p" onclick="saveEditCompany()">Save Changes</button>
+      <button class="btn btn-s" onclick="document.getElementById('editModal').classList.remove('open')">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <script>
 // ─── STATE ───────────────────────────────────────────────────
@@ -257,6 +281,39 @@ function saveCompany(){
   });
   saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
 }
+function editCompany(id){
+  const c=getCo(id);if(!c)return;
+  document.getElementById('editCoName').value=c.name;
+  document.getElementById('editHEmail').checked=c.hasEmail||false;
+  document.getElementById('editHJC').checked=c.hasJC||false;
+  document.getElementById('editHZS').checked=c.hasZS||false;
+  // Set EDR radio
+  const edrType=c.edrType||(c.hasEDR?'cp':c.hasCS?'cs':'none');
+  document.querySelector(`input[name="editEdrType"][value="${edrType}"]`).checked=true;
+  // Store editing ID
+  document.getElementById('editModal').dataset.editId=id;
+  document.getElementById('editModal').classList.add('open');
+}
+
+function saveEditCompany(){
+  const id=document.getElementById('editModal').dataset.editId;
+  const c=getCo(id);if(!c)return;
+  const name=document.getElementById('editCoName').value.trim();
+  if(!name)return alert('Enter company name');
+  const edrType=document.querySelector('input[name="editEdrType"]:checked')?.value||'none';
+  c.name=name;
+  c.hasEmail=document.getElementById('editHEmail').checked;
+  c.hasJC=document.getElementById('editHJC').checked;
+  c.hasEDR=edrType==='cp';
+  c.hasCS=edrType==='cs';
+  c.hasZS=document.getElementById('editHZS').checked;
+  c.edrType=edrType;
+  saveCo();
+  document.getElementById('editModal').classList.remove('open');
+  renderCo();renderMain();
+  showToast('✅ Company updated!');
+}
+
 function deleteCompany(id){
   if(!confirm('Delete company + all history?'))return;
   companies=companies.filter(c=>c.id!==id);delete history[id];saveCo();saveHi();
@@ -270,6 +327,7 @@ function renderCo(){
     const icons=[c.hasEmail,c.hasJC,c.hasEDR,c.hasCS,c.hasZS].map((on,i)=>`<span style="font-size:11px;opacity:${on?1:.2}">${['📧','☁️','🛡️','🦅','🔒'][i]}</span>`).join('');
     return `<div class="co-card ${activeId===c.id?'active':''}" onclick="selectCompany('${c.id}')">
       <div class="cdel" onclick="event.stopPropagation();deleteCompany('${c.id}')">✕</div>
+      <div style="position:absolute;top:7px;right:30px;width:19px;height:19px;background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.3);border-radius:4px;color:var(--accent);font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:.2s;" class="cedit" onclick="event.stopPropagation();editCompany('${c.id}')">✏️</div>
       <div class="cn">${c.name}</div>
       <div style="display:flex;gap:5px;margin-top:4px">${icons}</div>
       ${h.length?`<div style="font-size:9px;color:var(--green);margin-top:4px;font-family:monospace">● ${h.length} report${h.length>1?'s':''} saved</div>`:''}
