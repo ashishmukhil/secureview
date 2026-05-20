@@ -827,8 +827,8 @@ function analyze(data,company){
         'In JumpCloud':inJC?'✅ Yes':'❌ No',
         'JC Device':deviceName,
         'Offline Status':offlineStatus,
-        'EDR (CP)':edrStatus,
-        'CrowdStrike':csStatus,
+        ...(company.hasEDR?{'EDR (CP)':edrStatus}:{}),
+        ...(company.hasCS?{'CrowdStrike':csStatus}:{}),
         'Location/Group':virtualGroup,
         'Zscaler':zsStatus,
         'Policy Status':policyStatus,
@@ -858,7 +858,10 @@ function analyze(data,company){
       masterSummary:{
         title:'🔍 Master Summary',
         rows:masterRows,
-        cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status','EDR (CP)','CrowdStrike','Location/Group','Zscaler','Policy Status','User MFA','Device MFA','Overall']
+        cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status',
+              ...(company.hasEDR?['EDR (CP)']:[]),
+              ...(company.hasCS?['CrowdStrike']:[]),
+              'Location/Group','Zscaler','Policy Status','User MFA','Device MFA','Overall']
       },
       ...result.tables
     };
