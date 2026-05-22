@@ -1377,10 +1377,28 @@ async function driveLoadAllHistory(){
 }
 
 function updateDriveStatus(state,msg){
-  const el=document.getElementById('driveStatus');
-  if(!el){ console.log('driveStatus:',state,msg); return; }
   const col={ok:'var(--green)',error:'var(--red)',syncing:'var(--yellow)',off:'var(--muted)'};
-  el.innerHTML=`<span style="color:${col[state]||'var(--muted)'}">●</span> ${msg}`;
+  const html=`<span style="color:${col[state]||'var(--muted)'}">●</span> ${msg}`;
+  let el=document.getElementById('driveStatus');
+  if(el){el.innerHTML=html;return;}
+  // driveStatus not found — re-render driveBar then update
+  try{renderDriveBar();}catch(e){}
+  el=document.getElementById('driveStatus');
+  if(el){el.innerHTML=html;return;}
+  // Last resort — update driveBar directly
+  const bar=document.getElementById('driveBar');
+  if(bar){
+    const existing=bar.querySelector('#driveStatus');
+    if(existing)existing.innerHTML=html;
+    else{
+      const span=document.createElement('span');
+      span.id='driveStatus';
+      span.style.cssText='font-size:11px;font-family:monospace;margin-left:8px';
+      span.innerHTML=html;
+      bar.appendChild(span);
+    }
+  }
+  console.log('driveStatus:',state,msg);
 }
 
 function toggleDrive(){
@@ -1470,7 +1488,7 @@ window.onload=()=>{
     else renderMain();
   }catch(e){ console.error('renderMain:',e); }
   // Drive sync after UI is ready — don't block UI
-  if(driveEnabled) setTimeout(()=>{ try{driveLoadAllHistory();}catch(e){} }, 1500);
+  if(driveEnabled) setTimeout(()=>{ try{renderDriveBar();driveLoadAllHistory();}catch(e){} }, 2000);
 };
 </script>
 </body>
