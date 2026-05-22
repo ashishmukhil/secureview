@@ -219,6 +219,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <div class="mo-overlay" id="editModal">
   <div class="mo">
     <h3>// EDIT COMPANY</h3>
@@ -257,7 +259,7 @@ function saveHi(){
   localStorage.setItem(LS_HI,JSON.stringify(history));
 }
 function getCo(id){return companies.find(c=>c.id===id);}
-function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
+function showToast(m){const t=document.getElementById('toast');if(!t)return;t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 
 // ─── COMPANIES ────────────────────────────────────────────────
 function openAddCompany(){
