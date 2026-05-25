@@ -895,7 +895,7 @@ function analyze(data,company){
         ...(company.hasEDR?{'EDR (CP)':edrStatus}:{}),
         ...(company.hasCS?{'CrowdStrike':csStatus}:{}),
         'Location/Group':virtualGroup,
-        'Zscaler':zsStatus,
+        ...(company.hasZS?{'Zscaler':zsStatus}:{}),
         'Policy Status':policyStatus,
         'User MFA':userMFA,
         'Device MFA':deviceMFA,
@@ -926,7 +926,9 @@ function analyze(data,company){
         cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status',
               ...(company.hasEDR?['EDR (CP)']:[]),
               ...(company.hasCS?['CrowdStrike']:[]),
-              'Location/Group','Zscaler','Policy Status','User MFA','Device MFA','Overall']
+              'Location/Group',
+              ...(company.hasZS?['Zscaler']:[]),
+              'Policy Status','User MFA','Device MFA','Overall']
       },
       ...result.tables
     };
