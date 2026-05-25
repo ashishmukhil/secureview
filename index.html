@@ -885,7 +885,12 @@ function analyze(data,company){
         } else csStatus='⚫ No JC';
       }
 
-      const overallOk=inJC&&edrStatus==='✅ Yes'&&zsState==='Registered'&&userMFA==='✅ Enrolled'&&(daysOff===null||daysOff<=7);
+      const overallOk=inJC
+        &&(company.hasEDR?edrStatus==='✅ Yes':true)
+        &&(company.hasCS?csStatus.includes('Active'):true)
+        &&(company.hasZS?zsState==='Registered':true)
+        &&userMFA==='✅ Enrolled'
+        &&(daysOff===null||daysOff<=7);
       return{
         'Name':u.name,'Email':u.email,
         'In Email':u.inEmail?'✅':'⚫ JC Only',
