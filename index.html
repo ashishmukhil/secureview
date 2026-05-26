@@ -19,8 +19,7 @@
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--font-sans);min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:40px 40px;opacity:0.25;pointer-events:none;z-index:0}
-.app{position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:28px 20px}
+.app{display:none;position:relative;z-index:1;max-width:1440px;margin:0 auto;padding:28px 20px}
 .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:32px}
 .logo{display:flex;align-items:center;gap:14px}
 .logo-icon{width:46px;height:46px;background:linear-gradient(135deg,var(--accent),var(--accent3));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 30px rgba(0,212,255,0.25)}
@@ -162,9 +161,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </style>
 </head>
 <body>
-<style>
-.app{display:none;}
-</style>
 
 <!-- LOGIN SCREEN -->
 <div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
