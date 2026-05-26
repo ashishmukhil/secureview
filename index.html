@@ -174,6 +174,21 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <!-- Google Drive Sync Bar -->
 <div id="driveBar" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 16px;margin-bottom:18px;"></div>
 
+<!-- Breach Check Bar -->
+<div id="breachBar" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <span style="font-size:20px">🔓</span>
+  <div style="flex:1">
+    <div style="font-size:12px;font-weight:600;color:var(--text)">Breach Directory API <span style="font-size:9px;font-family:monospace;color:var(--muted);margin-left:8px">via RapidAPI</span></div>
+    <div style="font-size:10px;color:var(--muted)">Email breach check → Master Summary mein <span style="color:var(--accent);font-family:monospace">Breach Status</span> column</div>
+  </div>
+  <label class="tgl"><input type="checkbox" id="breachEnabled" onchange="toggleBreach()"><span class="tgl-s"></span></label>
+  <span id="breachStatus" style="font-size:11px;font-family:monospace;min-width:140px"><span style="color:var(--muted)">●</span> Off</span>
+  <input id="breachApiKey" type="password" placeholder="RapidAPI Key..." 
+    style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 12px;color:var(--text);font-size:11px;font-family:monospace;outline:none;width:280px;"
+    oninput="saveBreachKey(this.value)"/>
+  <button class="ex-btn" onclick="testBreachApi()" style="padding:5px 11px;font-size:11px;white-space:nowrap">🔌 Test</button>
+</div>
+
 <div class="slabel">Companies</div>
 <div class="co-grid" id="coGrid"></div>
 <div id="mainContent"></div>
@@ -1089,6 +1104,7 @@ function renderDashboard(result,c){
     s.zsNotFound!==undefined&&s.zsNotFound>0?mkCard('cr',s.zsNotFound,'No Zscaler','Not in ZS','zsNotFound',true):'',
     s.csInJC!==undefined?mkCard(s.jcNoCS>0?'co':'cg',s.csInJC,'CrowdStrike',`${s.jcNoCS||0} JC w/o CS`,'csInJC',false):'',
     s.csNotInJC!==undefined&&s.csNotInJC>0?mkCard('cy',s.csNotInJC,'CS Not in JC','Investigate','csNotInJC',true):'',
+    s.breachFound!==undefined?mkCard(s.breachFound>0?'cr':'cg',s.breachFound,'Breached Users',`${s.breachChecked||0} checked`,'breachFound',true):'',
   ].filter(Boolean);
 
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
@@ -1107,6 +1123,7 @@ function renderDashboard(result,c){
     <div class="ex-btns">
       <button class="ex-btn ep" onclick="exportExcel()">⬇ Excel</button>
       <button class="ex-btn" onclick="exportDiffExcel()" ${diff?'':'disabled'} title="${diff?'Download diff Excel':'Select history entry to compare'}">📊 Diff Excel</button>
+      ${breachEnabled?`<button class="ex-btn" onclick="runBreachCheck()" id="breachBtn" style="border-color:var(--red);color:var(--red)">🔓 Check Breaches</button>`:''}
       <button class="ex-btn" onclick="resetReport()">↺ New</button>
     </div>
   </div>
@@ -1436,6 +1453,131 @@ function cleanDuplicateCompanies(){
   }
 }
 
+// ── BREACH DIRECTORY API ─────────────────────────────────────
+let breachEnabled=localStorage.getItem('sv_breach_enabled')==='true';
+
+function saveBreachKey(key){
+  localStorage.setItem('sv_breach_key',key.trim());
+  const inp=document.getElementById('breachApiKey');
+  if(inp)inp.style.borderColor=key.trim()?'var(--green)':'var(--border)';
+}
+
+function toggleBreach(){
+  breachEnabled=!breachEnabled;
+  localStorage.setItem('sv_breach_enabled',String(breachEnabled));
+  const st=document.getElementById('breachStatus');
+  if(st)st.innerHTML=breachEnabled?'<span style="color:var(--green)">●</span> Enabled':'<span style="color:var(--muted)">●</span> Off';
+  const cb=document.getElementById('breachEnabled');
+  if(cb)cb.checked=breachEnabled;
+  showToast(breachEnabled?'🔓 Breach Check ON!':'Breach Check OFF');
+}
+
+async function testBreachApi(){
+  const key=localStorage.getItem('sv_breach_key')||'';
+  if(!key){showToast('⚠️ API Key pehle daalo!');return;}
+  const st=document.getElementById('breachStatus');
+  if(st)st.innerHTML='<span style="color:var(--yellow)">●</span> Testing...';
+  try{
+    const resp=await fetch('https://breachdirectory.p.rapidapi.com/?func=auto&term=test@gmail.com',{
+      method:'GET',
+      headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'breachdirectory.p.rapidapi.com'}
+    });
+    const data=await resp.json();
+    if(resp.ok&&data){
+      if(st)st.innerHTML='<span style="color:var(--green)">●</span> Connected ✓';
+      showToast('✅ Breach API connected!');
+    } else throw new Error(data.message||'Failed');
+  }catch(e){
+    if(st)st.innerHTML='<span style="color:var(--red)">●</span> Failed';
+    showToast('❌ '+e.message);
+  }
+}
+
+async function checkBreachForEmail(email){
+  const key=localStorage.getItem('sv_breach_key')||'';
+  if(!key||!breachEnabled)return null;
+  try{
+    const resp=await fetch(`https://breachdirectory.p.rapidapi.com/?func=auto&term=${encodeURIComponent(email)}`,{
+      method:'GET',
+      headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'breachdirectory.p.rapidapi.com'}
+    });
+    if(!resp.ok)return null;
+    const data=await resp.json();
+    if(data&&data.found>0){
+      return{found:true,count:data.found,sources:data.result?[...new Set(data.result.map(r=>r.sources).flat())].slice(0,3):[]};
+    }
+    return{found:false,count:0,sources:[]};
+  }catch(e){return null;}
+}
+
+// ── INIT BREACH BAR ──────────────────────────────────────────
+async function runBreachCheck(){
+  if(!currentReport)return;
+  const btn=document.getElementById('breachBtn');
+  if(btn){btn.disabled=true;btn.textContent='🔓 Checking...';}
+
+  const masterTable=currentReport.tables.masterSummary;
+  if(!masterTable){showToast('⚠️ Master Summary nahi mili!');return;}
+
+  const emails=[...new Set(masterTable.rows.map(r=>r.Email).filter(e=>e&&e!=='N/A'&&e.includes('@')))];
+  let checked=0,found=0;
+
+  showToast(`🔓 ${emails.length} emails check ho rahe hain...`);
+
+  // Add Breach Status column if not exists
+  if(!masterTable.cols.includes('Breach Status')){
+    masterTable.cols.push('Breach Status');
+  }
+
+  // Check in batches of 5 with delay to avoid rate limit
+  for(let i=0;i<emails.length;i++){
+    const email=emails[i];
+    // Add small delay to avoid rate limiting
+    if(i>0&&i%5===0) await new Promise(res=>setTimeout(res,1000));
+
+    const result=await checkBreachForEmail(email);
+    checked++;
+
+    // Update all rows with this email
+    masterTable.rows.forEach(row=>{
+      if(row.Email===email){
+        if(result===null){
+          row['Breach Status']='⚪ N/A';
+        } else if(result.found){
+          row['Breach Status']=`🔴 ${result.count} Breach${result.count>1?'es':''}`;
+          found++;
+        } else {
+          row['Breach Status']='✅ Clean';
+        }
+      }
+    });
+
+    // Update progress
+    if(btn)btn.textContent=`🔓 ${checked}/${emails.length}`;
+  }
+
+  currentReport.stats.breachFound=found;
+  currentReport.stats.breachChecked=checked;
+
+  if(btn){btn.disabled=false;btn.textContent='🔓 Check Breaches';}
+  showToast(`✅ Breach check done! ${found} breached emails found.`);
+
+  // Re-render dashboard
+  const c=getCo(activeId);
+  const dash=document.getElementById('dash');
+  if(dash&&c){dash.innerHTML=renderDashboard(currentReport,c);setTimeout(()=>{const ft=document.querySelector('.tab');if(ft)ft.click();},50);}
+}
+
+function initBreachBar(){
+  const cb=document.getElementById('breachEnabled');
+  if(cb)cb.checked=breachEnabled;
+  const key=localStorage.getItem('sv_breach_key')||'';
+  const inp=document.getElementById('breachApiKey');
+  if(inp){inp.value=key;if(key)inp.style.borderColor='var(--green)';}
+  const st=document.getElementById('breachStatus');
+  if(st)st.innerHTML=breachEnabled?'<span style="color:var(--green)">●</span> Enabled':'<span style="color:var(--muted)">●</span> Off';
+}
+
 function renderDriveBar(){
   const el=document.getElementById('driveBar');if(!el)return;
   const savedUrl=localStorage.getItem('sv_drive_url')||'';
@@ -1491,6 +1633,7 @@ async function testDriveConnection(){
 // ─── INIT ─────────────────────────────────────────────────────
 window.onload=()=>{
   try{ renderDriveBar(); }catch(e){ console.error('driveBar:',e); }
+  try{ initBreachBar(); }catch(e){ console.error('breachBar:',e); }
   try{ renderCo(); }catch(e){ console.error('renderCo:',e); }
   try{
     if(companies.length) selectCompany(companies[0].id);
