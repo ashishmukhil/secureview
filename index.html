@@ -162,13 +162,64 @@ tr:hover td{background:rgba(255,255,255,.02)}
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:36px;width:420px;max-width:95vw;text-align:center;">
+    <div style="width:56px;height:56px;background:linear-gradient(135deg,var(--accent),var(--accent3));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px;">🛡️</div>
+    <h1 style="font-family:var(--font-mono);font-size:20px;color:var(--accent);margin-bottom:4px">SecureView</h1>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:28px">IT Security Report Tool</p>
+    <div style="margin-bottom:14px;text-align:left">
+      <label style="font-size:10px;color:var(--muted);font-family:monospace;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Email</label>
+      <input id="loginEmail" type="email" placeholder="your@email.com" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;"/>
+    </div>
+    <div style="margin-bottom:20px;text-align:left">
+      <label style="font-size:10px;color:var(--muted);font-family:monospace;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:5px">Password</label>
+      <input id="loginPass" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"
+        style="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:13px;outline:none;"/>
+    </div>
+    <div id="loginError" style="color:var(--red);font-size:12px;margin-bottom:12px;display:none">❌ Invalid email or password</div>
+    <button onclick="doLogin()" style="width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent3));border:none;border-radius:9px;color:#fff;font-family:var(--font-mono);font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px;">LOGIN →</button>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(4px);">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="font-family:var(--font-mono);font-size:14px;color:var(--accent)">// USER MANAGEMENT</h3>
+      <button onclick="document.getElementById('adminPanel').style.display='none'" style="background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div style="margin-bottom:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:14px">
+      <div style="font-size:11px;color:var(--muted);font-family:monospace;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px">Add New User</div>
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <input id="newUserEmail" type="email" placeholder="email@company.com" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;"/>
+        <input id="newUserPass" type="text" placeholder="password" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 12px;color:var(--text);font-size:12px;outline:none;"/>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer">
+          <input type="checkbox" id="newUserAdmin" style="accent-color:var(--accent)"> Admin (can manage users)
+        </label>
+        <button onclick="addUser()" style="margin-left:auto;padding:7px 16px;background:var(--accent);border:none;border-radius:7px;color:#000;font-size:12px;font-weight:700;cursor:pointer">+ Add</button>
+      </div>
+    </div>
+    <div id="userList" style="display:flex;flex-direction:column;gap:6px"></div>
+    <div style="margin-top:14px;font-size:10px;color:var(--muted);font-family:monospace">⚠️ Passwords are stored locally — don't use sensitive passwords</div>
+  </div>
+</div>
+
 <div class="app">
 <div class="header">
   <div class="logo">
     <div class="logo-icon">🛡️</div>
     <div><h1>SecureView</h1><p>IT Security Report Generator — Multi-Company</p></div>
   </div>
-  <div class="live-badge">WEEKLY REPORT TOOL v2 — WITH HISTORY &amp; DIFF</div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <div class="live-badge">WEEKLY REPORT TOOL v2 — WITH HISTORY &amp; DIFF</div>
+    <button id="adminBtn" onclick="openAdmin()" style="display:none;padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--accent);font-size:11px;font-family:monospace;cursor:pointer">⚙️ Users</button>
+    <button onclick="doLogout()" style="padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--muted);font-size:11px;font-family:monospace;cursor:pointer">⬡ Logout</button>
+  </div>
 </div>
 
 <!-- Google Drive Sync Bar -->
@@ -1453,6 +1504,132 @@ function cleanDuplicateCompanies(){
   }
 }
 
+// ── AUTHENTICATION ───────────────────────────────────────────
+const AUTH_KEY='sv_auth_users';
+const SESSION_KEY='sv_session';
+
+function getUsers(){return JSON.parse(localStorage.getItem(AUTH_KEY)||'[]');}
+function saveUsers(u){localStorage.setItem(AUTH_KEY,JSON.stringify(u));}
+function getSession(){return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}
+function setSession(u){sessionStorage.setItem(SESSION_KEY,JSON.stringify(u));}
+
+function hashPass(p){
+  // Simple hash for basic security
+  let h=0;for(let i=0;i<p.length;i++){h=((h<<5)-h)+p.charCodeAt(i);h|=0;}
+  return h.toString(36);
+}
+
+function initAuth(){
+  const users=getUsers();
+  // Create default admin if no users exist
+  if(users.length===0){
+    users.push({email:'ashish@nxgsecure.co.in',pass:hashPass('admin123'),isAdmin:true});
+    saveUsers(users);
+  }
+  const session=getSession();
+  if(session&&users.find(u=>u.email===session.email)){
+    // Valid session — show app
+    showApp(session);
+  } else {
+    // Show login
+    showLogin();
+  }
+}
+
+function showLogin(){
+  document.getElementById('loginScreen').style.display='flex';
+  document.querySelector('.app').style.display='none';
+}
+
+function showApp(user){
+  document.getElementById('loginScreen').style.display='none';
+  document.querySelector('.app').style.display='block';
+  // Show admin button if admin
+  const adminBtn=document.getElementById('adminBtn');
+  if(adminBtn)adminBtn.style.display=user.isAdmin?'block':'none';
+}
+
+function doLogin(){
+  const email=document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pass=document.getElementById('loginPass').value;
+  const errEl=document.getElementById('loginError');
+  if(!email||!pass){errEl.style.display='block';errEl.textContent='❌ Email aur password required';return;}
+  const users=getUsers();
+  const user=users.find(u=>u.email.toLowerCase()===email&&u.pass===hashPass(pass));
+  if(user){
+    errEl.style.display='none';
+    setSession({email:user.email,isAdmin:user.isAdmin});
+    showApp(user);
+    // Init app
+    try{renderDriveBar();}catch(e){}
+    try{initBreachBar();}catch(e){}
+    try{renderCo();}catch(e){}
+    try{if(companies.length)selectCompany(companies[0].id);else renderMain();}catch(e){}
+    if(driveEnabled)setTimeout(()=>{try{renderDriveBar();driveLoadAllHistory();}catch(e){}},2000);
+  } else {
+    errEl.style.display='block';
+    errEl.textContent='❌ Invalid email or password';
+    document.getElementById('loginPass').value='';
+  }
+}
+
+function doLogout(){
+  sessionStorage.removeItem(SESSION_KEY);
+  showLogin();
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPass').value='';
+}
+
+function openAdmin(){
+  const session=getSession();
+  if(!session||!session.isAdmin){showToast('⚠️ Admin access only!');return;}
+  renderUserList();
+  document.getElementById('adminPanel').style.display='flex';
+}
+
+function renderUserList(){
+  const users=getUsers();
+  const session=getSession();
+  document.getElementById('userList').innerHTML=users.map((u,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px">
+      <span style="font-size:18px">${u.isAdmin?'👑':'👤'}</span>
+      <div style="flex:1">
+        <div style="font-size:12px;color:var(--text);font-weight:600">${u.email}</div>
+        <div style="font-size:10px;color:var(--muted)">${u.isAdmin?'Admin':'User'}</div>
+      </div>
+      ${u.email.toLowerCase()!==session?.email?.toLowerCase()?`
+        <button onclick="deleteUser(${i})" style="background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--red);border-radius:5px;padding:3px 9px;font-size:11px;cursor:pointer">Remove</button>
+      `:'<span style="font-size:10px;color:var(--accent);font-family:monospace">You</span>'}
+    </div>
+  `).join('');
+}
+
+function addUser(){
+  const email=document.getElementById('newUserEmail').value.trim().toLowerCase();
+  const pass=document.getElementById('newUserPass').value.trim();
+  const isAdmin=document.getElementById('newUserAdmin').checked;
+  if(!email||!pass){showToast('⚠️ Email aur password required!');return;}
+  if(!email.includes('@')){showToast('⚠️ Valid email daalo!');return;}
+  const users=getUsers();
+  if(users.find(u=>u.email.toLowerCase()===email)){showToast('⚠️ User already exists!');return;}
+  users.push({email,pass:hashPass(pass),isAdmin});
+  saveUsers(users);
+  document.getElementById('newUserEmail').value='';
+  document.getElementById('newUserPass').value='';
+  document.getElementById('newUserAdmin').checked=false;
+  renderUserList();
+  showToast(`✅ User ${email} added!`);
+}
+
+function deleteUser(idx){
+  if(!confirm('Remove this user?'))return;
+  const users=getUsers();
+  users.splice(idx,1);
+  saveUsers(users);
+  renderUserList();
+  showToast('🗑️ User removed!');
+}
+
 // ── BREACH DIRECTORY API ─────────────────────────────────────
 let breachEnabled=localStorage.getItem('sv_breach_enabled')==='true';
 
@@ -1632,16 +1809,10 @@ async function testDriveConnection(){
 
 // ─── INIT ─────────────────────────────────────────────────────
 window.onload=()=>{
-  try{ renderDriveBar(); }catch(e){ console.error('driveBar:',e); }
-  try{ initBreachBar(); }catch(e){ console.error('breachBar:',e); }
-  try{ renderCo(); }catch(e){ console.error('renderCo:',e); }
-  try{
-    if(companies.length) selectCompany(companies[0].id);
-    else renderMain();
-  }catch(e){ console.error('renderMain:',e); }
-  // Drive sync after UI is ready — don't block UI
-  if(driveEnabled) setTimeout(()=>{ try{renderDriveBar();driveLoadAllHistory();}catch(e){} }, 2000);
+  // Auth check first
+  initAuth();
 };
+
 </script>
 </body>
 </html>
