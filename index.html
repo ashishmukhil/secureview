@@ -233,9 +233,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
   </div>
   <label class="tgl"><input type="checkbox" id="breachEnabled" onchange="toggleBreach()"><span class="tgl-s"></span></label>
   <span id="breachStatus" style="font-size:11px;font-family:monospace;min-width:140px"><span style="color:var(--muted)">●</span> Off</span>
-  <input id="breachApiKey" type="password" placeholder="RapidAPI Key..." 
-    style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 12px;color:var(--text);font-size:11px;font-family:monospace;outline:none;width:280px;"
-    oninput="saveBreachKey(this.value)"/>
+  <input id="breachApiKey" type="password" placeholder="Paste your RapidAPI key here..." 
+    style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 12px;color:var(--text);font-size:11px;font-family:monospace;outline:none;width:300px;"
+    oninput="saveBreachKey(this.value)" onchange="saveBreachKey(this.value)" onblur="saveBreachKey(this.value)"/>
   <button class="ex-btn" onclick="testBreachApi()" style="padding:5px 11px;font-size:11px;white-space:nowrap">🔌 Test</button>
 </div>
 
@@ -443,7 +443,7 @@ function renderMain(){
           </div>
         </div>`;
       }).join('')}</div>
-      <div style="margin-top:7px;font-size:9px;color:var(--muted)">💡 <strong style="color:var(--accent)">Compare:</strong> Ek entry click karo (select) → dusri pe 👁 View → diff dikhega &nbsp;|&nbsp; <strong style="color:var(--accent)">Sirf dekhna:</strong> Seedha 👁 View click karo</div>
+      <div style="margin-top:7px;font-size:9px;color:var(--muted)">💡 <strong style="color:var(--accent)">Compare:</strong> Click one entry (select) → then 👁 View on another → diff will show &nbsp;|&nbsp; <strong style="color:var(--accent)">View only:</strong> Click 👁 View directly</div>
     </div>`;
   }
 
@@ -1398,7 +1398,7 @@ async function driveSaveHistory(companyId){
 async function driveLoadAllHistory(){
   if(!driveEnabled)return;
   const url=localStorage.getItem('sv_drive_url')||'';
-  if(!url){updateDriveStatus('error','⚠️ URL not set');showToast('⚠️ Apps Script URL nahi hai!');return;}
+  if(!url){updateDriveStatus('error','⚠️ URL not set');showToast('⚠️ Apps Script URL is not set!');return;}
   // Ensure driveBar is rendered so driveStatus element exists
   try{renderDriveBar();}catch(e){}
   try{
@@ -1439,7 +1439,7 @@ async function driveLoadAllHistory(){
       });
       if(companiesAdded>0)saveCo();
       updateDriveStatus('ok',`☁️ ${loaded} companies loaded`);
-      showToast(`☁️ ${loaded} companies load ho gaye!`);
+      showToast(`☁️ ${loaded} companies companies loaded!`);
       renderCo();
       if(activeId)renderMain();
       else if(companies.length){selectCompany(companies[0].id);}
@@ -1693,7 +1693,7 @@ async function runBreachCheck(){
   if(btn){btn.disabled=true;btn.textContent='🔓 Checking...';}
 
   const masterTable=currentReport.tables.masterSummary;
-  if(!masterTable){showToast('⚠️ Master Summary nahi mili!');return;}
+  if(!masterTable){showToast('⚠️ Master Summary table not found!');return;}
 
   const emails=[...new Set(masterTable.rows.map(r=>r.Email).filter(e=>e&&e!=='N/A'&&e.includes('@')))];
   let checked=0,found=0;
@@ -1749,7 +1749,10 @@ function initBreachBar(){
   if(cb)cb.checked=breachEnabled;
   const key=localStorage.getItem('sv_breach_key')||'';
   const inp=document.getElementById('breachApiKey');
-  if(inp){inp.value=key;if(key)inp.style.borderColor='var(--green)';}
+  if(inp){
+    inp.value=key;
+    inp.style.borderColor=key?'var(--green)':'var(--border)';
+  }
   const st=document.getElementById('breachStatus');
   if(st)st.innerHTML=breachEnabled?'<span style="color:var(--green)">●</span> Enabled':'<span style="color:var(--muted)">●</span> Off';
 }
@@ -1779,7 +1782,7 @@ function renderDriveBar(){
       oninput="saveDriveUrl(this.value)"
     />
     ${savedUrl?`<button class="ex-btn" onclick="testDriveConnection()" style="padding:5px 11px;font-size:11px;white-space:nowrap">🔌 Test Connection</button>`:''}
-    <span style="font-size:9px;color:var(--muted)">← Apps Script deploy ke baad milega</span>
+    <span style="font-size:9px;color:var(--muted)">← Paste your Google Apps Script URL here</span>
   </div>`;
 }
 
@@ -1791,7 +1794,7 @@ function saveDriveUrl(url){
 
 async function testDriveConnection(){
   const url=localStorage.getItem('sv_drive_url')||'';
-  if(!url){showToast('⚠️ Pehle URL paste karo!');return;}
+  if(!url){showToast('⚠️ Please paste the Apps Script URL first!');return;}
   updateDriveStatus('syncing','🔌 Testing...');
   try{
     const data=await driveCall({action:'ping'});
