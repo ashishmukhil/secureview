@@ -1509,8 +1509,8 @@ const SESSION_KEY='sv_session';
 
 function getUsers(){return JSON.parse(localStorage.getItem(AUTH_KEY)||'[]');}
 function saveUsers(u){localStorage.setItem(AUTH_KEY,JSON.stringify(u));}
-function getSession(){return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null');}
-function setSession(u){sessionStorage.setItem(SESSION_KEY,JSON.stringify(u));}
+function getSession(){return JSON.parse(localStorage.getItem(SESSION_KEY)||'null');}
+function setSession(u){localStorage.setItem(SESSION_KEY,JSON.stringify(u));}
 
 function hashPass(p){
   // Simple hash for basic security
@@ -1575,10 +1575,8 @@ function doLogin(){
 }
 
 function doLogout(){
-  sessionStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(SESSION_KEY);
   showLogin();
-  document.getElementById('loginEmail').value='';
-  document.getElementById('loginPass').value='';
 }
 
 function openAdmin(){
