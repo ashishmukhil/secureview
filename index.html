@@ -1538,33 +1538,35 @@ function initAuth(){
 function showLogin(){
   document.getElementById('loginScreen').style.display='flex';
   document.querySelector('.app').style.display='none';
+  document.getElementById('loginEmail').value='';
+  document.getElementById('loginPass').value='';
+  document.getElementById('loginError').style.display='none';
 }
 
 function showApp(user){
   document.getElementById('loginScreen').style.display='none';
   document.querySelector('.app').style.display='block';
-  // Show admin button if admin
   const adminBtn=document.getElementById('adminBtn');
-  if(adminBtn)adminBtn.style.display=user.isAdmin?'block':'none';
+  if(adminBtn)adminBtn.style.display=user.isAdmin?'inline-block':'none';
+  // Init all components
+  try{renderDriveBar();}catch(e){}
+  try{initBreachBar();}catch(e){}
+  try{renderCo();}catch(e){}
+  try{if(companies.length)selectCompany(companies[0].id);else renderMain();}catch(e){}
+  if(driveEnabled)setTimeout(()=>{try{renderDriveBar();driveLoadAllHistory();}catch(e){}},2000);
 }
 
 function doLogin(){
   const email=document.getElementById('loginEmail').value.trim().toLowerCase();
   const pass=document.getElementById('loginPass').value;
   const errEl=document.getElementById('loginError');
-  if(!email||!pass){errEl.style.display='block';errEl.textContent='❌ Email aur password required';return;}
+  if(!email||!pass){errEl.style.display='block';errEl.textContent='❌ Email and password are required';return;}
   const users=getUsers();
   const user=users.find(u=>u.email.toLowerCase()===email&&u.pass===hashPass(pass));
   if(user){
     errEl.style.display='none';
     setSession({email:user.email,isAdmin:user.isAdmin});
     showApp(user);
-    // Init app
-    try{renderDriveBar();}catch(e){}
-    try{initBreachBar();}catch(e){}
-    try{renderCo();}catch(e){}
-    try{if(companies.length)selectCompany(companies[0].id);else renderMain();}catch(e){}
-    if(driveEnabled)setTimeout(()=>{try{renderDriveBar();driveLoadAllHistory();}catch(e){}},2000);
   } else {
     errEl.style.display='block';
     errEl.textContent='❌ Invalid email or password';
