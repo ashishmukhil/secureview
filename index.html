@@ -1351,8 +1351,9 @@ function exportDiffExcel(){
 
 // ─── GOOGLE DRIVE INTEGRATION via Anthropic API ───────────────
 // Pre-configured Apps Script URL
-const DRIVE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwysTQqHorXBs1P6jlas56_A2Fg06i4-fXKa2ayBJv-kjtrMC-lFlmALo8csVS0Nqcj/exec';
-if(!localStorage.getItem('sv_drive_url'))localStorage.setItem('sv_drive_url',DRIVE_SCRIPT_URL);
+const DRIVE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbwZFWJOWprFYyL7LNVEpquwG4TD0m9Q5qj6u4R8sqlBae9mC0r1ItY0ydh--X6DPHJn/exec';
+// Always update to latest URL
+localStorage.setItem('sv_drive_url',DRIVE_SCRIPT_URL);
 let driveEnabled=localStorage.getItem('sv_drive_enabled')==='true';
 let driveSyncing=false;
 
