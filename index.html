@@ -228,14 +228,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
 <div id="breachBar" style="background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:12px 16px;margin-bottom:18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
   <span style="font-size:20px">🔓</span>
   <div style="flex:1">
-    <div style="font-size:12px;font-weight:600;color:var(--text)">Breach Directory API <span style="font-size:9px;font-family:monospace;color:var(--muted);margin-left:8px">via RapidAPI</span></div>
-    <div style="font-size:10px;color:var(--muted)">Email breach check → Master Summary mein <span style="color:var(--accent);font-family:monospace">Breach Status</span> column</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text)">Breach Check <span style="font-size:9px;font-family:monospace;color:var(--muted);margin-left:8px">via HaveIBeenPwned — powered by Apps Script</span></div>
+    <div style="font-size:10px;color:var(--muted)">Check email breaches → <span style="color:var(--accent);font-family:monospace">Breach Status</span> column in Master Summary (requires Drive sync to be ON)</div>
   </div>
   <label class="tgl"><input type="checkbox" id="breachEnabled" onchange="toggleBreach()"><span class="tgl-s"></span></label>
   <span id="breachStatus" style="font-size:11px;font-family:monospace;min-width:140px"><span style="color:var(--muted)">●</span> Off</span>
-  <input id="breachApiKey" type="password" placeholder="Paste your RapidAPI key here..." 
-    style="background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:6px 12px;color:var(--text);font-size:11px;font-family:monospace;outline:none;width:300px;"
-    oninput="saveBreachKey(this.value)" onchange="saveBreachKey(this.value)" onblur="saveBreachKey(this.value)"/>
   <button class="ex-btn" onclick="testBreachApi()" style="padding:5px 11px;font-size:11px;white-space:nowrap">🔌 Test</button>
 </div>
 
@@ -1649,48 +1646,39 @@ function toggleBreach(){
 }
 
 async function testBreachApi(){
-  const key=localStorage.getItem('sv_breach_key')||'';
-  if(!key){showToast('⚠️ Please paste your RapidAPI key first!');return;}
+  if(!driveEnabled){showToast('⚠️ Please enable Google Drive Sync first!');return;}
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url){showToast('⚠️ Apps Script URL not set!');return;}
   const st=document.getElementById('breachStatus');
   if(st)st.innerHTML='<span style="color:var(--yellow)">●</span> Testing...';
   try{
-    const resp=await fetch('https://email-breach-search.p.rapidapi.com/rapidapi/all-breaches',{
-      method:'GET',
-      headers:{'x-rapidapi-key':key,'x-rapidapi-host':'email-breach-search.p.rapidapi.com'}
-    });
-    if(resp.ok||resp.status===200){
+    const resp=await fetch(url,{method:'POST',body:JSON.stringify({action:'checkBreach',email:'test@gmail.com'})});
+    const data=await resp.json();
+    if(data.status==='ok'){
       if(st)st.innerHTML='<span style="color:var(--green)">●</span> Connected ✓';
-      showToast('✅ Breach API connected!');
-    } else if(resp.status===403){
-      if(st)st.innerHTML='<span style="color:var(--red)">●</span> Invalid Key';
-      showToast('❌ Invalid API key — please check your RapidAPI subscription');
-    } else {
-      if(st)st.innerHTML='<span style="color:var(--red)">●</span> Failed ('+resp.status+')';
-      showToast('❌ API returned status: '+resp.status);
-    }
+      showToast('✅ Breach Check connected via Apps Script!');
+    } else throw new Error(data.message||'Failed');
   }catch(e){
     if(st)st.innerHTML='<span style="color:var(--red)">●</span> Failed';
-    showToast('❌ Connection failed: '+e.message);
+    showToast('❌ '+e.message+' — Make sure Drive Sync is ON');
   }
 }
 
 async function checkBreachForEmail(email){
-  const key=localStorage.getItem('sv_breach_key')||'';
-  if(!key||!breachEnabled)return null;
+  if(!driveEnabled)return null;
+  const url=localStorage.getItem('sv_drive_url')||'';
+  if(!url)return null;
   try{
-    const resp=await fetch(`https://email-breach-search.p.rapidapi.com/rapidapi/search-email/${encodeURIComponent(email)}`,{
-      method:'GET',
-      headers:{'x-rapidapi-key':key,'x-rapidapi-host':'email-breach-search.p.rapidapi.com'}
+    const resp=await fetch(url,{
+      method:'POST',
+      body:JSON.stringify({action:'checkBreach',email})
     });
     if(!resp.ok)return null;
     const data=await resp.json();
-    // Handle different response formats
-    if(data){
-      const breaches=data.breaches||data.results||data.data||[];
-      const count=data.total||data.found||breaches.length||0;
-      if(count>0) return{found:true,count};
+    if(data.status==='ok'){
+      return{found:data.found,count:data.count||0,breaches:data.breaches||[]};
     }
-    return{found:false,count:0};
+    return null;
   }catch(e){return null;}
 }
 
