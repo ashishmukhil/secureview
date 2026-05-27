@@ -1650,22 +1650,27 @@ function toggleBreach(){
 
 async function testBreachApi(){
   const key=localStorage.getItem('sv_breach_key')||'';
-  if(!key){showToast('⚠️ API Key pehle daalo!');return;}
+  if(!key){showToast('⚠️ Please paste your RapidAPI key first!');return;}
   const st=document.getElementById('breachStatus');
   if(st)st.innerHTML='<span style="color:var(--yellow)">●</span> Testing...';
   try{
-    const resp=await fetch('https://breachdirectory.p.rapidapi.com/?func=auto&term=test@gmail.com',{
+    const resp=await fetch('https://email-breach-search.p.rapidapi.com/rapidapi/all-breaches',{
       method:'GET',
-      headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'breachdirectory.p.rapidapi.com'}
+      headers:{'x-rapidapi-key':key,'x-rapidapi-host':'email-breach-search.p.rapidapi.com'}
     });
-    const data=await resp.json();
-    if(resp.ok&&data){
+    if(resp.ok||resp.status===200){
       if(st)st.innerHTML='<span style="color:var(--green)">●</span> Connected ✓';
       showToast('✅ Breach API connected!');
-    } else throw new Error(data.message||'Failed');
+    } else if(resp.status===403){
+      if(st)st.innerHTML='<span style="color:var(--red)">●</span> Invalid Key';
+      showToast('❌ Invalid API key — please check your RapidAPI subscription');
+    } else {
+      if(st)st.innerHTML='<span style="color:var(--red)">●</span> Failed ('+resp.status+')';
+      showToast('❌ API returned status: '+resp.status);
+    }
   }catch(e){
     if(st)st.innerHTML='<span style="color:var(--red)">●</span> Failed';
-    showToast('❌ '+e.message);
+    showToast('❌ Connection failed: '+e.message);
   }
 }
 
@@ -1673,16 +1678,19 @@ async function checkBreachForEmail(email){
   const key=localStorage.getItem('sv_breach_key')||'';
   if(!key||!breachEnabled)return null;
   try{
-    const resp=await fetch(`https://breachdirectory.p.rapidapi.com/?func=auto&term=${encodeURIComponent(email)}`,{
+    const resp=await fetch(`https://email-breach-search.p.rapidapi.com/rapidapi/search-email/${encodeURIComponent(email)}`,{
       method:'GET',
-      headers:{'X-RapidAPI-Key':key,'X-RapidAPI-Host':'breachdirectory.p.rapidapi.com'}
+      headers:{'x-rapidapi-key':key,'x-rapidapi-host':'email-breach-search.p.rapidapi.com'}
     });
     if(!resp.ok)return null;
     const data=await resp.json();
-    if(data&&data.found>0){
-      return{found:true,count:data.found,sources:data.result?[...new Set(data.result.map(r=>r.sources).flat())].slice(0,3):[]};
+    // Handle different response formats
+    if(data){
+      const breaches=data.breaches||data.results||data.data||[];
+      const count=data.total||data.found||breaches.length||0;
+      if(count>0) return{found:true,count};
     }
-    return{found:false,count:0,sources:[]};
+    return{found:false,count:0};
   }catch(e){return null;}
 }
 
