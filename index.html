@@ -318,7 +318,26 @@ let activeId=null, currentReport=null, uploadedFiles={}, compareWith=null;
 function saveCo(){localStorage.setItem(LS_CO,JSON.stringify(companies));}
 function saveHi(){
   Object.keys(history).forEach(id=>{if(history[id].length>12)history[id]=history[id].slice(-12);});
-  localStorage.setItem(LS_HI,JSON.stringify(history));
+  // Save lightweight version to localStorage (stats only, no table rows)
+  const lightweight={};
+  Object.keys(history).forEach(id=>{
+    lightweight[id]=history[id].map(h=>({
+      date:h.date,
+      company:h.company,
+      stats:h.stats,
+      // Save tables only if small enough
+      tables:undefined
+    }));
+  });
+  try{
+    localStorage.setItem(LS_HI,JSON.stringify(lightweight));
+  }catch(e){
+    // If still too large, save only last 3 entries per company
+    Object.keys(lightweight).forEach(id=>{lightweight[id]=lightweight[id].slice(-3);});
+    try{localStorage.setItem(LS_HI,JSON.stringify(lightweight));}catch(e2){
+      console.warn('localStorage full — history not saved locally, use Drive sync');
+    }
+  }
 }
 function getCo(id){return companies.find(c=>c.id===id);}
 function showToast(m){const t=document.getElementById('toast');if(!t)return;t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
