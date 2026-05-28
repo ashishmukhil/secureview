@@ -1030,13 +1030,15 @@ function analyze(data,company){
         'Offline Status':offlineStatus,
         ...(company.hasEDR?{'EDR (CP)':edrStatus}:{}),
         ...(company.hasCS?{'CrowdStrike':csStatus}:{}),
-        'Location/Group':virtualGroup,
         ...(company.hasZS?{'Zscaler':zsStatus}:{}),
         'Policy Status':policyStatus,
         'User MFA':userMFA,
         'Device MFA':deviceMFA,
-        'Exception':isException?`✅ ${exceptionReason}`:'',
         'Overall':isException?'✅ OK (Exception)':overallOk?'✅ OK':'⚠️ Check',
+        // Extra fields for separate tabs (not shown in master cols)
+        _location:virtualGroup,
+        _exception:isException?exceptionReason:'',
+        _isException:isException,
         _key:u.email,_alert:!overallOk&&!isException
       };
     });
@@ -1063,14 +1065,35 @@ function analyze(data,company){
         cols:['Name','Email','In Email','In JumpCloud','JC Device','Offline Status',
               ...(company.hasEDR?['EDR (CP)']:[]),
               ...(company.hasCS?['CrowdStrike']:[]),
-              'Location/Group',
               ...(company.hasZS?['Zscaler']:[]),
-              'Policy Status','User MFA','Device MFA',
-              ...(Object.keys(exceptionsByEmail).length||Object.keys(exceptionsByDevice).length?['Exception']:[]),
-              'Overall']
+              'Policy Status','User MFA','Device MFA','Overall']
       },
       ...result.tables
     };
+
+    // ── LOCATION TAB ─────────────────────────────────────────────
+    const locationRows=masterRows
+      .filter(r=>r._location&&r._location!=='N/A'&&r._location!=='—')
+      .map(r=>({'Name':r.Name,'Email':r.Email,'JC Device':r['JC Device'],'Location/Group':r._location,'Overall':r.Overall,_key:r._key}));
+    if(locationRows.length){
+      result.tables.locationSummary={
+        title:'📍 Location / Group',
+        rows:locationRows,
+        cols:['Name','Email','JC Device','Location/Group','Overall']
+      };
+    }
+
+    // ── EXCEPTIONS TAB ────────────────────────────────────────────
+    const exceptionRows=masterRows
+      .filter(r=>r._isException)
+      .map(r=>({'Name':r.Name,'Email':r.Email,'JC Device':r['JC Device'],'Exception Reason':r._exception,'Overall':r.Overall,_key:r._key}));
+    if(exceptionRows.length){
+      result.tables.exceptionsList={
+        title:'✅ Exceptions / Whitelist',
+        rows:exceptionRows,
+        cols:['Name','Email','JC Device','Exception Reason','Overall']
+      };
+    }
   }
 
   return result;
