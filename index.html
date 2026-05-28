@@ -486,6 +486,7 @@ function getSlots(c){
   if(c.hasEDR)sl.push({key:'edr',label:'EDR / Checkpoint',icon:'🛡️',desc:'XLSX or CSV'});
   if(c.hasCS)sl.push({key:'crowdstrike',label:'CrowdStrike EDR',icon:'🦅',desc:'Hosts CSV export'});
   if(c.hasZS)sl.push({key:'zscaler',label:'Zscaler Device Export',icon:'🔒',desc:'Device Export CSV'});
+  sl.push({key:'exceptions',label:'Exceptions / Whitelist',icon:'✅',desc:'Excel: email + remarks (optional)'});
   return sl;
 }
 function renderSlot(s){
@@ -496,7 +497,7 @@ function renderSlot(s){
     ${f?`<div class="sf">✓ ${f.name}</div><div class="sc2" onclick="clearFile(event,'${s.key}')">✕</div>`:''}
   </div>`;
 }
-function pickFile(key){const i=document.createElement('input');i.type='file';i.accept=key==='edr'?'.xlsx,.xls,.csv':'.csv';i.onchange=e=>{if(e.target.files[0]){uploadedFiles[key]=e.target.files[0];renderMain();}};i.click();}
+function pickFile(key){const i=document.createElement('input');i.type='file';i.accept=(key==='edr'||key==='exceptions')?'.xlsx,.xls,.csv':'.csv';i.onchange=e=>{if(e.target.files[0]){uploadedFiles[key]=e.target.files[0];renderMain();}};i.click();}
 function clearFile(e,key){e.stopPropagation();delete uploadedFiles[key];renderMain();}
 
 // ─── ANALYSIS ─────────────────────────────────────────────────
@@ -525,6 +526,10 @@ async function runAnalysis(){
     if(uploadedFiles.edr){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
     if(uploadedFiles.zscaler)data.zscaler=await rCSV(uploadedFiles.zscaler);
     if(uploadedFiles.crowdstrike)data.crowdstrike=await rCSV(uploadedFiles.crowdstrike);
+    if(uploadedFiles.exceptions){
+      const ext=uploadedFiles.exceptions.name.split('.').pop().toLowerCase();
+      data.exceptions=ext==='csv'?await rCSV(uploadedFiles.exceptions):await rXLSX(uploadedFiles.exceptions);
+    }
     sp(50);
     const result=analyze(data,c);sp(80);
     currentReport=result;
@@ -550,6 +555,46 @@ function analyze(data,company){
   const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
   const norm=s=>(s||'').toString().trim().toLowerCase();
   const normD=s=>(s||'').toString().trim().toUpperCase().replace(/\.LOCAL$/,'');
+
+  // ── PARSE EXCEPTIONS / WHITELIST ─────────────────────────────
+  // Build email → reason and device → reason maps
+  const exceptionsByEmail={};
+  const exceptionsByDevice={};
+  if(data.exceptions&&data.exceptions.length){
+    data.exceptions.forEach(row=>{
+      const vals=Object.values(row).map(v=>String(v||'').trim());
+      const keys=Object.keys(row);
+      // Find email column (first column usually)
+      const emailVal=norm(vals[0]||'');
+      // Find remarks — look for column with 'remark' in name or non-empty value after email
+      let reason='Exception';
+      for(let i=0;i<keys.length;i++){
+        const k=String(keys[i]).toLowerCase();
+        const v=String(vals[i]||'').trim();
+        if((k.includes('remark')||k.includes('reason')||k.includes('comment'))&&v&&v!=='nan'&&v!==emailVal){
+          reason=v;break;
+        }
+      }
+      // Also check for non-empty values as reason
+      if(reason==='Exception'){
+        for(let i=1;i<vals.length;i++){
+          if(vals[i]&&vals[i]!=='nan'&&vals[i]!==emailVal&&vals[i].length>2){
+            reason=vals[i];break;
+          }
+        }
+      }
+      if(emailVal&&emailVal.includes('@')){
+        exceptionsByEmail[emailVal]=reason;
+      }
+      // Also check device columns (Sheet1 style)
+      keys.forEach((k,i)=>{
+        const kl=String(k).toLowerCase();
+        if((kl.includes('device')||kl.includes('computer')||kl.includes('hostname'))&&vals[i]&&vals[i]!=='nan'){
+          exceptionsByDevice[normD(vals[i])]=reason;
+        }
+      });
+    });
+  }
 
   const emailUsers=(data.email||[]).map(r=>({name:r['user_name']||r['name']||r['Name']||'',email:norm(r['user_email']||r['email']||r['Email']||'')})).filter(r=>r.email);
   const jcUsers=(data.jcUsers||[]).map(r=>({email:norm(r['email']||''),username:norm(r['username']||''),state:r['state']||''})).filter(r=>r.email||r.username);
@@ -966,12 +1011,17 @@ function analyze(data,company){
         } else csStatus='⚫ No JC';
       }
 
-      const overallOk=inJC
+      // Check exception
+      const exceptionReason=exceptionsByEmail[u.email]||
+        (deviceName!=='N/A'?exceptionsByDevice[normD(deviceName)]:null)||null;
+      const isException=!!exceptionReason;
+
+      const overallOk=isException||(inJC
         &&(company.hasEDR?edrStatus==='✅ Yes':true)
         &&(company.hasCS?csStatus.includes('Active'):true)
         &&(company.hasZS?zsState==='Registered':true)
         &&userMFA==='✅ Enrolled'
-        &&(daysOff===null||daysOff<=7);
+        &&(daysOff===null||daysOff<=7));
       return{
         'Name':u.name,'Email':u.email,
         'In Email':u.inEmail?'✅':'⚫ JC Only',
@@ -985,8 +1035,9 @@ function analyze(data,company){
         'Policy Status':policyStatus,
         'User MFA':userMFA,
         'Device MFA':deviceMFA,
-        'Overall':overallOk?'✅ OK':'⚠️ Check',
-        _key:u.email,_alert:!overallOk
+        'Exception':isException?`✅ ${exceptionReason}`:'',
+        'Overall':isException?'✅ OK (Exception)':overallOk?'✅ OK':'⚠️ Check',
+        _key:u.email,_alert:!overallOk&&!isException
       };
     });
 
@@ -1014,7 +1065,9 @@ function analyze(data,company){
               ...(company.hasCS?['CrowdStrike']:[]),
               'Location/Group',
               ...(company.hasZS?['Zscaler']:[]),
-              'Policy Status','User MFA','Device MFA','Overall']
+              'Policy Status','User MFA','Device MFA',
+              ...(Object.keys(exceptionsByEmail).length||Object.keys(exceptionsByDevice).length?['Exception']:[]),
+              'Overall']
       },
       ...result.tables
     };
