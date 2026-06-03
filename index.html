@@ -629,6 +629,13 @@ function analyze(data,company){
     result.tables.notInJC={title:'Users Not In JumpCloud',rows:notIn.map(r=>({Name:r.Name,Email:r.Email,Status:'Email Active — No JC Account',_key:r._key})),cols:['Name','Email','Status']};
   }
 
+  // If no email file — use JC users for total count
+  if(!emailUsers.length&&jcUsers.length){
+    result.stats.totalEmailUsers=jcUsers.length;
+    result.stats.usersInJC=jcUsers.length;
+    result.stats.usersNotInJC=0;
+  }
+
   if(jcDevices.length){
     const rows=jcDevices.map(d=>{
       // Match using hostname (not displayName)
