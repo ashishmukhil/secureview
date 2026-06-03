@@ -750,23 +750,32 @@ function analyze(data,company){
     // Auto-detect format: all_assets (Hostname, OS version, Manufacturer, Last seen)
     // vs standard CrowdStrike (Hostname, Host ID, Last Seen, Platform...)
     const firstRow=data.crowdstrike[0]||{};
-    const isAllAssetsFormat=('OS version' in firstRow||'Manufacturer' in firstRow)&&!('Host ID' in firstRow);
+    const rowKeys=Object.keys(firstRow).map(k=>k.toLowerCase());
+    const isAllAssetsFormat=rowKeys.includes('manufacturer')||rowKeys.includes('os version')||
+      (!rowKeys.includes('host id')&&!rowKeys.includes('sensor version')&&rowKeys.includes('last seen'));
 
     let csDevs=[];
     if(isAllAssetsFormat){
-      // all_assets CSV format
+      // all_assets CSV format — find columns case-insensitively
+      const getCol=(row,names)=>{
+        for(const n of names){
+          const found=Object.keys(row).find(k=>k.toLowerCase()===n.toLowerCase());
+          if(found&&row[found])return row[found].toString().trim();
+        }
+        return '';
+      };
       csDevs=data.crowdstrike
-        .filter(r=>(r['Hostname']||'').toString().trim())
+        .filter(r=>getCol(r,['Hostname']))
         .map(r=>({
-          name:normD((r['Hostname']||'').toString().trim()),
-          lastSeen:(r['Last seen']||r['Last Seen']||'').toString().trim(),
-          platform:(r['OS version']||r['OS Version']||'').toString().trim(),
-          osVersion:(r['OS version']||r['OS Version']||'').toString().trim(),
+          name:normD(getCol(r,['Hostname'])),
+          lastSeen:getCol(r,['Last seen','Last Seen']),
+          platform:getCol(r,['OS version','OS Version','Platform']),
+          osVersion:getCol(r,['OS version','OS Version']),
           hostGroups:'N/A',
           lastUser:'N/A',
           sensorVersion:'N/A',
           preventionPolicy:'N/A',
-          manufacturer:(r['Manufacturer']||'').toString().trim(),
+          manufacturer:getCol(r,['Manufacturer']),
         })).filter(r=>r.name);
     } else {
       // Standard CrowdStrike format
