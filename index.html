@@ -249,23 +249,17 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="tg-grp">
         <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="hEmail" checked><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="hJC" checked><span class="tgl-s"></span></label></div>
-        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select One)</label>
+        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select one or both)</label>
           <div style="display:flex;flex-direction:column;gap:6px;background:rgba(0,212,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px">
             <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="radio" name="edrType" id="hEDRnone" value="none" checked style="accent-color:var(--accent)">
-                <span>⚫ No EDR</span>
-              </label>
-            </div>
-            <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="radio" name="edrType" id="hEDR" value="cp" style="accent-color:var(--accent)">
+                <input type="checkbox" id="hEDR" style="accent-color:var(--accent)">
                 <span>🛡️ Checkpoint EDR</span>
               </label>
             </div>
             <div class="tg-item" style="border:none;background:transparent;padding:4px 0">
               <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-                <input type="radio" name="edrType" id="hCS" value="cs" style="accent-color:var(--accent)">
+                <input type="checkbox" id="hCS" style="accent-color:var(--accent)">
                 <span>🦅 CrowdStrike EDR</span>
               </label>
             </div>
@@ -291,11 +285,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="tg-grp">
         <div class="tg-item"><label>📧 Email Security (CSV)</label><label class="tgl"><input type="checkbox" id="editHEmail"><span class="tgl-s"></span></label></div>
         <div class="tg-item"><label>☁️ JumpCloud (Users + Devices)</label><label class="tgl"><input type="checkbox" id="editHJC"><span class="tgl-s"></span></label></div>
-        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select One)</label>
+        <div class="mf" style="margin:8px 0 4px 0"><label style="font-size:10px;color:var(--accent);font-family:monospace;letter-spacing:1px">EDR (Select one or both)</label>
           <div style="display:flex;flex-direction:column;gap:6px;background:rgba(0,212,255,0.03);border:1px solid var(--border);border-radius:8px;padding:10px">
-            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHEDRnone" value="none" style="accent-color:var(--accent)"><span>⚫ No EDR</span></label></div>
-            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHEDR" value="cp" style="accent-color:var(--accent)"><span>🛡️ Checkpoint EDR</span></label></div>
-            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="radio" name="editEdrType" id="editHCS" value="cs" style="accent-color:var(--accent)"><span>🦅 CrowdStrike EDR</span></label></div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="editHEDR" style="accent-color:var(--accent)"><span>🛡️ Checkpoint EDR</span></label></div>
+            <div class="tg-item" style="border:none;background:transparent;padding:4px 0"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="editHCS" style="accent-color:var(--accent)"><span>🦅 CrowdStrike EDR</span></label></div>
           </div>
         </div>
         <div class="tg-item"><label>🔒 Zscaler (Device Export CSV)</label><label class="tgl"><input type="checkbox" id="editHZS"><span class="tgl-s"></span></label></div>
@@ -346,21 +339,20 @@ function showToast(m){const t=document.getElementById('toast');if(!t)return;t.te
 function openAddCompany(){
   document.getElementById('coName').value='';
   ['hEmail','hJC'].forEach(x=>document.getElementById(x).checked=true);
-  document.getElementById('hEDRnone').checked=true;
+  document.getElementById('hEDR').checked=false;
+  document.getElementById('hCS').checked=false;
   document.getElementById('hZS').checked=false;
   document.getElementById('addModal').classList.add('open');
 }
 function saveCompany(){
   const name=document.getElementById('coName').value.trim();
   if(!name)return alert('Enter company name');
-  const edrType=document.querySelector('input[name="edrType"]:checked')?.value||'none';
   companies.push({id:Date.now().toString(),name,
     hasEmail:document.getElementById('hEmail').checked,
     hasJC:document.getElementById('hJC').checked,
-    hasEDR:edrType==='cp',
-    hasCS:edrType==='cs',
-    hasZS:document.getElementById('hZS').checked,
-    edrType
+    hasEDR:document.getElementById('hEDR').checked,
+    hasCS:document.getElementById('hCS').checked,
+    hasZS:document.getElementById('hZS').checked
   });
   saveCo();document.getElementById('addModal').classList.remove('open');renderCo();selectCompany(companies[companies.length-1].id);
 }
@@ -369,11 +361,9 @@ function editCompany(id){
   document.getElementById('editCoName').value=c.name;
   document.getElementById('editHEmail').checked=c.hasEmail||false;
   document.getElementById('editHJC').checked=c.hasJC||false;
+  document.getElementById('editHEDR').checked=c.hasEDR||false;
+  document.getElementById('editHCS').checked=c.hasCS||false;
   document.getElementById('editHZS').checked=c.hasZS||false;
-  // Set EDR radio
-  const edrType=c.edrType||(c.hasEDR?'cp':c.hasCS?'cs':'none');
-  document.querySelector(`input[name="editEdrType"][value="${edrType}"]`).checked=true;
-  // Store editing ID
   document.getElementById('editModal').dataset.editId=id;
   document.getElementById('editModal').classList.add('open');
 }
@@ -383,14 +373,12 @@ function saveEditCompany(){
   const c=getCo(id);if(!c)return;
   const name=document.getElementById('editCoName').value.trim();
   if(!name)return alert('Enter company name');
-  const edrType=document.querySelector('input[name="editEdrType"]:checked')?.value||'none';
   c.name=name;
   c.hasEmail=document.getElementById('editHEmail').checked;
   c.hasJC=document.getElementById('editHJC').checked;
-  c.hasEDR=edrType==='cp';
-  c.hasCS=edrType==='cs';
+  c.hasEDR=document.getElementById('editHEDR').checked;
+  c.hasCS=document.getElementById('editHCS').checked;
   c.hasZS=document.getElementById('editHZS').checked;
-  c.edrType=edrType;
   saveCo();
   document.getElementById('editModal').classList.remove('open');
   renderCo();renderMain();
@@ -759,23 +747,46 @@ function analyze(data,company){
       return groups.length>0?groups.join(', '):'—';
     };
 
-    // Filter valid rows — must have Hostname AND valid Host ID (36 char UUID)
-    const csDevs=data.crowdstrike
-      .filter(r=>{
-        const h=(r['Hostname']||'').toString().trim();
-        const id=(r['Host ID']||'').toString().trim();
-        return h&&h.length>0&&id&&id.length>=16;
-      })
-      .map(r=>({
-        name:normD((r['Hostname']||'').toString().trim()),
-        lastSeen:(r['Last Seen']||'').toString().split('\n')[0].trim(),
-        platform:(r['Platform']||'').toString().split('\n')[0].trim(),
-        osVersion:(r['OS Version']||'').toString().split('\n')[0].trim(),
-        hostGroups:parseCSGroups(r['Host Groups']||''),
-        lastUser:(r['Last Logged In User Account']||'').toString().split('\n')[0].trim(),
-        sensorVersion:(r['Sensor Version']||'').toString().split('\n')[0].trim(),
-        preventionPolicy:(r['Prevention Policy']||'').toString().split('\n')[0].trim(),
-      })).filter(r=>r.name);
+    // Auto-detect format: all_assets (Hostname, OS version, Manufacturer, Last seen)
+    // vs standard CrowdStrike (Hostname, Host ID, Last Seen, Platform...)
+    const firstRow=data.crowdstrike[0]||{};
+    const isAllAssetsFormat=('OS version' in firstRow||'Manufacturer' in firstRow)&&!('Host ID' in firstRow);
+
+    let csDevs=[];
+    if(isAllAssetsFormat){
+      // all_assets CSV format
+      csDevs=data.crowdstrike
+        .filter(r=>(r['Hostname']||'').toString().trim())
+        .map(r=>({
+          name:normD((r['Hostname']||'').toString().trim()),
+          lastSeen:(r['Last seen']||r['Last Seen']||'').toString().trim(),
+          platform:(r['OS version']||r['OS Version']||'').toString().trim(),
+          osVersion:(r['OS version']||r['OS Version']||'').toString().trim(),
+          hostGroups:'N/A',
+          lastUser:'N/A',
+          sensorVersion:'N/A',
+          preventionPolicy:'N/A',
+          manufacturer:(r['Manufacturer']||'').toString().trim(),
+        })).filter(r=>r.name);
+    } else {
+      // Standard CrowdStrike format
+      csDevs=data.crowdstrike
+        .filter(r=>{
+          const h=(r['Hostname']||'').toString().trim();
+          const id=(r['Host ID']||'').toString().trim();
+          return h&&h.length>0&&id&&id.length>=16;
+        })
+        .map(r=>({
+          name:normD((r['Hostname']||'').toString().trim()),
+          lastSeen:(r['Last Seen']||'').toString().split('\n')[0].trim(),
+          platform:(r['Platform']||'').toString().split('\n')[0].trim(),
+          osVersion:(r['OS Version']||'').toString().split('\n')[0].trim(),
+          hostGroups:parseCSGroups(r['Host Groups']||''),
+          lastUser:(r['Last Logged In User Account']||'').toString().split('\n')[0].trim(),
+          sensorVersion:(r['Sensor Version']||'').toString().split('\n')[0].trim(),
+          preventionPolicy:(r['Prevention Policy']||'').toString().split('\n')[0].trim(),
+        })).filter(r=>r.name);
+    }
 
     const csDevSet=new Set(csDevs.map(d=>d.name));
 
