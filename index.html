@@ -789,6 +789,9 @@ function analyze(data,company){
       const csNoZSRows=csDevs.filter(d=>!zsHostSet2.has(d.name)).map(d=>({'Hostname':d.name,'Last Seen':String(d.lastSeen||'').substring(0,10)||'N/A',_key:d.name}));
       if(csNoZSRows.length)result.tables.edrNoZS={title:'EDR — No Zscaler',rows:csNoZSRows,cols:['Hostname','Last Seen']};
     }
+    // Zscaler — No JC tab
+    const zsNoJCRows=zsUsers.filter(z=>!jcUsers.find(u=>u.email===z.email)).map(z=>({'Email':z.email,'Hostname':z.hostname||'N/A','ZS State':z.state||'N/A',_key:z.email}));
+    result.tables.zsNoJC={title:'Zscaler — No JC',rows:zsNoJCRows,cols:['Email','Hostname','ZS State']};
     // EDR devices not in Zscaler (by hostname match)
     if(data.edr&&data.edr.length){
       const zsHostSet=new Set(zsUsers.map(u=>u.hostname?normD(u.hostname):'').filter(Boolean));
@@ -1362,9 +1365,9 @@ function renderDashboard(result,c){
     // 9. JC hai, Zscaler nahi
     s.zsNotFound!==undefined
       ?mkCard(s.zsNotFound>0?'cr':'cg',s.zsNotFound,'JC — No Zscaler',s.zsNotFound>0?'⚠️ Missing':'All in ZS ✅','zsNotFound',true):'',
-    // 10. EDR hai, Zscaler nahi
-    hasEDRAny&&s.zsTotal!==undefined
-      ?mkCard(edrNoZS>0?'co':'cg',edrNoZS,'EDR — No Zscaler',edrNoZS>0?'Check coverage':'All covered ✅','edrNoZS',true):'',
+    // 10. Zscaler hai, JC nahi
+    s.zsOnlyInZS!==undefined
+      ?mkCard(s.zsOnlyInZS>0?'co':'cg',s.zsOnlyInZS,'Zscaler — No JC',s.zsOnlyInZS>0?'⚠️ Not in JC':'All matched ✅','zsOnlyInZS',true):'',
     // Extra: breach check if run
     s.breachFound!==undefined?mkCard(s.breachFound>0?'cr':'cg',s.breachFound,'Breached Users',`${s.breachChecked||0} checked`,'breachFound',true):'',
   ].filter(Boolean);
@@ -1372,7 +1375,7 @@ function renderDashboard(result,c){
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
 
   // Fixed tab order matching 10 dashboard cards
-  const TAB_ORDER=['emailStatus','deviceStatus','unboundDevices','csStatus','zsStatus','notInJC','noEDR','edrNotInJC','notInZS','edrNoZS','masterSummary','edrStatus','zsStatus','zsProblematic','notInCS'];
+  const TAB_ORDER=['emailStatus','deviceStatus','unboundDevices','csStatus','zsStatus','notInJC','noEDR','edrNotInJC','notInZS','zsNoJC','masterSummary','edrStatus','zsProblematic','notInCS'];
   const orderedTables=[
     ...TAB_ORDER.filter(k=>result.tables[k]).map(k=>[k,result.tables[k]]),
     ...Object.entries(result.tables).filter(([k])=>!TAB_ORDER.includes(k))
@@ -1506,7 +1509,7 @@ async function exportExcel(){
   if(s.zsNotFound!==undefined)wc(12,P[2],'JC — No Zscaler',s.zsNotFound||0,(s.zsNotFound||0)>0?'Missing':'All in ZS',(s.zsNotFound||0)>0?RED:GRN);
   ws1.getRow(15).height=12;
   // Row 16: card 10
-  if(hasEDR&&s.zsTotal!==undefined)wc(16,[2,3],'EDR — No Zscaler',edrNoZS,edrNoZS>0?'Check coverage':'All covered',edrNoZS>0?ORG:GRN);
+  if(s.zsOnlyInZS!==undefined)wc(16,[2,3],'Zscaler — No JC',s.zsOnlyInZS||0,(s.zsOnlyInZS||0)>0?'Not in JC':'All matched',(s.zsOnlyInZS||0)>0?ORG:GRN);
   ws1.getRow(19).height=16;
   // Summary table
   const SR=21;ws1.getColumn(2).width=32;ws1.getColumn(3).width=20;
