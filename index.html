@@ -602,7 +602,9 @@ function analyze(data,company){
     const rawDN=r['displayName']||r['hostname']||r['name']||'';
     // If displayName is an IP address, use hostname instead
     const isIP=v=>/^\d{1,3}(\.\d{1,3}){3}$/.test((v||'').trim());
-    const hostname=normD(rawHN||rawDN);
+    // If hostname is too short (truncated/corrupt), prefer displayName
+    const effectiveHN=(rawHN.trim().length<=3&&rawDN.trim().length>3)?rawDN:rawHN;
+    const hostname=normD(effectiveHN||rawDN);
     const displayName=isIP(rawDN)?rawHN:rawDN;
     return {hostname, name:hostname, displayName, os:r['os']||r['osFamily']||'',lastContact:lc,daysOffline:dOff};
   }).filter(r=>r.hostname);
