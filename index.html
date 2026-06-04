@@ -771,7 +771,9 @@ function analyze(data,company){
     const zsProb=zsRows.filter(r=>!r._noZS&&r['Effective State']!=='Registered');
     if(zsProb.length)result.tables.zsProblematic={title:'ZS — Unregistered / Remove Pending',rows:zsProb.map(r=>({Name:r.Name,Email:r.Email,'Status':r['ZS Status'],'All States':r['All States'],'Last Seen':r['Last Seen ZIA'],_key:r._key})),cols:['Name','Email','Status','All States','Last Seen']};
 
-    result.stats.zsTotal=zsUsers.length;
+    result.stats.zsTotal=zsUsers.length; // raw unique emails in ZS file
+    result.stats.zsInJC=zsRows.filter(r=>!r._noZS).length; // ZS users who are also in JC
+    result.stats.zsOnlyInZS=zsUsers.filter(z=>!jcUsers.find(u=>u.email===z.email)).length; // ZS but not in JC
     result.stats.zsRegistered=zsRows.filter(r=>r['Effective State']==='Registered').length;
     result.stats.zsUnregistered=zsRows.filter(r=>r['Effective State']==='Unregistered').length;
     result.stats.zsRemovePending=zsRows.filter(r=>r['Effective State']==='Remove pending').length;
@@ -1345,7 +1347,7 @@ function renderDashboard(result,c){
       ?mkCard('cb',edrTotal,edrLabel+' Devices',`${edrNoJC} not in JC`,'csTotal',false):'',
     // 5. Zscaler Devices
     s.zsTotal!==undefined
-      ?mkCard('cb',s.zsTotal,'Zscaler Devices',`${s.zsRegistered||0} registered`,'zsTotal',false):'',
+      ?mkCard('cb',s.zsTotal,'Zscaler Devices',`${s.zsInJC||0} in JC  |  ${s.zsOnlyInZS||0} extra`,'zsTotal',false):'',
     // 6. Email hai, JC nahi
     s.usersNotInJC!==undefined
       ?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Email — No JC',s.usersNotInJC>0?'⚠️ Not enrolled':'All enrolled ✅','usersNotInJC',true):'',
