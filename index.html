@@ -691,6 +691,9 @@ function analyze(data,company){
     // Build cols dynamically — only include EDR col if Checkpoint enabled
     const deviceCols=['Display Name','Hostname','Mapped User','In JC',...(cpEdrEnabled?['EDR']:[]),'Last Seen','Days Offline','Status','OS'];
     result.tables.deviceStatus={title:'All Devices',rows:[...rows,...edrOnly],cols:deviceCols};
+    // User-Device Bind tab — unbound devices
+    const unboundRows=rows.filter(r=>r._noUser).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],OS:r.OS,_key:r._key}));
+    result.tables.unboundDevices={title:'No User Mapped',rows:unboundRows,cols:['Display Name','Hostname','Last Seen','Days Offline','OS']};
     result.stats.totalDevices=jcDevices.length;result.stats.devicesWithUser=rows.filter(r=>!r._noUser).length;result.stats.devicesNoUser=rows.filter(r=>r._noUser).length;
     // CP EDR stats only if enabled
     if(cpEdrEnabled){
@@ -773,6 +776,15 @@ function analyze(data,company){
     result.stats.zsUnregistered=zsRows.filter(r=>r['Effective State']==='Unregistered').length;
     result.stats.zsRemovePending=zsRows.filter(r=>r['Effective State']==='Remove pending').length;
     result.stats.zsNotFound=notInZS.length;
+    // EDR — No Zscaler tab
+    const zsHostSet2=new Set(zsUsers.map(u=>u.hostname?normD(u.hostname):'').filter(Boolean));
+    if(cpEdrActive&&edrDevs.length){
+      const edrNoZSRows=edrDevs.filter(d=>!zsHostSet2.has(d.name)).map(d=>({'Hostname':d.name,'Last EDR Seen':String(d.lastConn).substring(0,10)||'N/A',_key:d.name}));
+      if(edrNoZSRows.length)result.tables.edrNoZS={title:'EDR — No Zscaler',rows:edrNoZSRows,cols:['Hostname','Last EDR Seen']};
+    } else if(csEdrActive&&csDevs.length){
+      const csNoZSRows=csDevs.filter(d=>!zsHostSet2.has(d.name)).map(d=>({'Hostname':d.name,'Last Seen':String(d.lastSeen||'').substring(0,10)||'N/A',_key:d.name}));
+      if(csNoZSRows.length)result.tables.edrNoZS={title:'EDR — No Zscaler',rows:csNoZSRows,cols:['Hostname','Last Seen']};
+    }
     // EDR devices not in Zscaler (by hostname match)
     if(data.edr&&data.edr.length){
       const zsHostSet=new Set(zsUsers.map(u=>u.hostname?normD(u.hostname):'').filter(Boolean));
@@ -1355,8 +1367,14 @@ function renderDashboard(result,c){
 
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
 
-  const tabs=Object.entries(result.tables).map(([k,t])=>`<button class="tab" onclick="switchTab(this,'${k}')">${t.title} <span style="font-size:9px;color:var(--muted)">(${t.rows.length})</span></button>`).join('');
-  const panels=Object.entries(result.tables).map(([k,t])=>`<div class="tab-panel" id="panel_${k}">${renderTable(t,k,diff)}</div>`).join('');
+  // Fixed tab order matching 10 dashboard cards
+  const TAB_ORDER=['emailStatus','deviceStatus','unboundDevices','csStatus','zsStatus','notInJC','noEDR','edrNotInJC','notInZS','edrNoZS','masterSummary','edrStatus','zsStatus','zsProblematic','notInCS'];
+  const orderedTables=[
+    ...TAB_ORDER.filter(k=>result.tables[k]).map(k=>[k,result.tables[k]]),
+    ...Object.entries(result.tables).filter(([k])=>!TAB_ORDER.includes(k))
+  ];
+  const tabs=orderedTables.map(([k,t])=>`<button class="tab" onclick="switchTab(this,'${k}')">${t.title} <span style="font-size:9px;color:var(--muted)">(${t.rows.length})</span></button>`).join('');
+  const panels=orderedTables.map(([k,t])=>`<div class="tab-panel" id="panel_${k}">${renderTable(t,k,diff)}</div>`).join('');
   const diffHtml=diff?renderDiffSection(diff,result,compareWith):'';
   const prevLbl=compareWith?`Comparing vs ${new Date(compareWith.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}`:'';
 
