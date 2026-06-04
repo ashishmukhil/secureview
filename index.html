@@ -547,7 +547,7 @@ function analyze(data,company){
   const cpEdrActive=!!(company.hasEDR&&data.edr&&data.edr.length);
   const csEdrActive=!!(company.hasCS&&data.crowdstrike&&data.crowdstrike.length);
   const now=new Date();
-  const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
+  const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[],cpEdrActive,csEdrActive};
   const norm=s=>(s||'').toString().trim().toLowerCase();
   const normD=s=>(s||'').toString().trim().toUpperCase().replace(/\.LOCAL\b/g,'').trim();
 
@@ -1286,6 +1286,8 @@ function renderDiffSection(diff,cur,prev){
 // ─── DASHBOARD ────────────────────────────────────────────────
 function renderDashboard(result,c){
   const s=result.stats;
+  const cpEdrActive=result.cpEdrActive||false;
+  const csEdrActive=result.csEdrActive||false;
   const diff=compareWith?computeDiff(result,compareWith):null;
 
   const mkPill=(statKey,lb)=>{
@@ -1303,8 +1305,8 @@ function renderDashboard(result,c){
     s.totalEmailUsers!==undefined?mkCard('cb',s.totalEmailUsers,'Email Users',`${s.usersInJC||0} in JumpCloud`,'totalEmailUsers',false):'',
     s.usersNotInJC!==undefined?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Not in JumpCloud',s.usersNotInJC>0?'Action needed':'All mapped ✅','usersNotInJC',true):'',
     s.totalDevices!==undefined?mkCard('cp',s.totalDevices,'JC Devices',`${s.devicesWithUser||0} user-mapped`,'totalDevices',false):'',
-    s.devicesNoEDR!==undefined&&s.edrFileUploaded?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR (CP)',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
-    s.edrNotInJC!==undefined&&s.edrFileUploaded?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
+    cpEdrActive&&s.devicesNoEDR!==undefined?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR (CP)',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
+    cpEdrActive&&s.edrNotInJC!==undefined?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
     s.offlineGT7!==undefined?mkCard(s.offlineGT7>0?'cy':'cg',s.offlineGT7,'Offline >7 Days',`${s.offlineGT30||0} offline >30d`,'offlineGT7',true):'',
     s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
     s.zsRegistered!==undefined?mkCard(s.zsNotFound>0?'co':'cg',s.zsRegistered,'ZS Registered',`${s.zsUnregistered||0} unregistered`,'zsRegistered',false):'',
@@ -1423,7 +1425,9 @@ async function exportExcel(){
   const P=[[2,3],[5,6],[8,9]];
   wc(4,P[0],'Total Users',(s.totalEmailUsers||0)+' users',(s.usersInJC||0)+' in JC  |  '+(s.usersNotInJC||0)+' not in JC',MBLUE);
   wc(4,P[1],'Not in JumpCloud',s.usersNotInJC||0,(s.usersInJC||0)+' users enrolled',(s.usersNotInJC||0)>0?RED:GRN);
-  wc(4,P[2],'No EDR',s.devicesNoEDR||s.jcNoCS||0,(s.devicesWithEDR||s.csInJC||0)+' protected',(s.devicesNoEDR||s.jcNoCS||0)>0?RED:GRN);
+  // Row 4 P[2]: show EDR card based on which EDR is active
+  if(result.cpEdrActive)wc(4,P[2],'No EDR (CP)',s.devicesNoEDR||0,(s.devicesWithEDR||0)+' protected',(s.devicesNoEDR||0)>0?RED:GRN);
+  else if(result.csEdrActive)wc(4,P[2],'JC w/o CS',s.jcNoCS||0,(s.csInJC||0)+' protected',(s.jcNoCS||0)>0?RED:GRN);
   ws1.getRow(7).height=12;
   wc(8,P[0],'ZS Registered',s.zsRegistered||0,(s.zsUnregistered||0)+' unregistered',GRN);
   wc(8,P[1],'Offline >7 Days',s.offlineGT7||0,(s.offlineGT30||0)+' critical >30d',(s.offlineGT30||0)>0?RED:(s.offlineGT7||0)>0?ORG:GRN);
@@ -1431,7 +1435,9 @@ async function exportExcel(){
   ws1.getRow(11).height=12;
   wc(12,P[0],'JC Devices',s.totalDevices||0,(s.devicesWithUser||0)+' user-mapped',MBLUE);
   wc(12,P[1],'CrowdStrike',s.csInJC||0,(s.jcNoCS||0)+' without CS',(s.jcNoCS||0)>0?ORG:GRN);
-  wc(12,P[2],'No EDR (CP)',s.devicesNoEDR||0,(s.devicesWithEDR||0)+' protected',(s.devicesNoEDR||0)>0?RED:GRN);
+  // Row 12 P[2]: EDR Not in JC (shadow devices) — only if CP active
+  if(result.cpEdrActive)wc(12,P[2],'EDR Not in JC',s.edrNotInJC||0,(s.edrNotInJC||0)>0?'Shadow devices':'None found',(s.edrNotInJC||0)>0?ORG:GRN);
+  else if(result.csEdrActive)wc(12,P[2],'CS Not in JC',s.csNotInJC||0,(s.csNotInJC||0)>0?'Investigate':'None found',(s.csNotInJC||0)>0?ORG:GRN);
   ws1.getRow(15).height=16;
   // Summary table
   const SR=17;ws1.getColumn(2).width=32;ws1.getColumn(3).width=20;
