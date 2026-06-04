@@ -613,7 +613,7 @@ function analyze(data,company){
     device:normD(r['device.hostname']||r['device.display_name']||r['device_name']||''),
     deviceDisplay:normD(r['device.display_name']||r['device.hostname']||r['device_name']||''),
     username:norm(r['user.username']||r['username']||'')
-  })).filter(r=>r.device);
+  })).filter(r=>r.device&&r.username); // both device AND username required
   // EDR: Computer Name is the hostname
   // Generic groups to filter out from display
   const GENERIC_GROUPS=new Set(['All Laptops','All Windows Laptops','All Mac OS X Laptops','All Desktops','All Windows Desktops','All Mac Laptops']);
