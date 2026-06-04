@@ -618,9 +618,13 @@ function analyze(data,company){
   // Generic groups to filter out from display
   const GENERIC_GROUPS=new Set(['All Laptops','All Windows Laptops','All Mac OS X Laptops','All Desktops','All Windows Desktops','All Mac Laptops']);
   const parseVirtualGroups=str=>{
-    if(!str||str.trim()==='')return'N/A';
-    const groups=str.split(',').map(g=>g.trim()).filter(g=>g&&!GENERIC_GROUPS.has(g));
-    return groups.length>0?groups.join(', '):'—';
+    if(!str||str.trim()==='')return[];
+    return str.split(',').map(g=>g.trim()).filter(Boolean);
+  };
+  const formatVirtualGroups=groups=>{
+    if(!groups||!groups.length)return'—';
+    const filtered=groups.filter(g=>!GENERIC_GROUPS.has(g));
+    return filtered.length>0?filtered.join(', '):'—';
   };
 
   // EDR/CP hostname: case-insensitive column lookup
@@ -1092,7 +1096,7 @@ function analyze(data,company){
         if(ud.length){
           const devHost=ud[0].device;
           const edrDev=edrDevs.find(d=>d.name===devHost);
-          if(edrDev)virtualGroup=edrDev.virtualGroups||'N/A';
+          if(edrDev)virtualGroup=Array.isArray(edrDev.virtualGroups)?formatVirtualGroups(edrDev.virtualGroups):edrDev.virtualGroups||'N/A';
         }
       }
 
