@@ -511,9 +511,13 @@ async function runAnalysis(){
     if(uploadedFiles.jcUsers)data.jcUsers=await rCSV(uploadedFiles.jcUsers);
     if(uploadedFiles.jcDevices)data.jcDevices=await rCSV(uploadedFiles.jcDevices);
     if(uploadedFiles.userDevice)data.userDevice=await rCSV(uploadedFiles.userDevice);
-    if(uploadedFiles.edr){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
+    // EDR mutual exclusion: CP file → skip CS; CS file → skip CP
+    const cpFileUploaded=!!(uploadedFiles.edr);
+    const csFileUploaded=!!(uploadedFiles.crowdstrike);
+    if(cpFileUploaded&&!csFileUploaded){const ext=uploadedFiles.edr.name.split('.').pop().toLowerCase();data.edr=ext==='csv'?await rCSV(uploadedFiles.edr):await rXLSX(uploadedFiles.edr);}
+    else if(csFileUploaded&&!cpFileUploaded){data.crowdstrike=await rCSV(uploadedFiles.crowdstrike);}
+    else if(cpFileUploaded&&csFileUploaded){data.crowdstrike=await rCSV(uploadedFiles.crowdstrike);}
     if(uploadedFiles.zscaler)data.zscaler=await rCSV(uploadedFiles.zscaler);
-    if(uploadedFiles.crowdstrike)data.crowdstrike=await rCSV(uploadedFiles.crowdstrike);
     if(uploadedFiles.exceptions){
       const ext=uploadedFiles.exceptions.name.split('.').pop().toLowerCase();
       data.exceptions=ext==='csv'?await rCSV(uploadedFiles.exceptions):await rXLSX(uploadedFiles.exceptions);
@@ -539,6 +543,9 @@ async function runAnalysis(){
 function scsv(l){const r=[];let c='',q=false;for(let i=0;i<l.length;i++){if(l[i]==='"')q=!q;else if(l[i]===','&&!q){r.push(c);c='';}else c+=l[i];}r.push(c);return r;}
 
 function analyze(data,company){
+  // EDR mode — determined by actual uploaded data (mutual exclusion)
+  const cpEdrActive=!!(company.hasEDR&&data.edr&&data.edr.length);
+  const csEdrActive=!!(company.hasCS&&data.crowdstrike&&data.crowdstrike.length);
   const now=new Date();
   const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
   const norm=s=>(s||'').toString().trim().toLowerCase();
@@ -637,7 +644,8 @@ function analyze(data,company){
   }
 
   if(jcDevices.length){
-    const cpEdrEnabled=!!(company.hasEDR); // Checkpoint EDR enabled for this company
+    const cpEdrEnabled=cpEdrActive; // use top-level flag
+  const csEdrEnabled=csEdrActive; // use top-level flag
     const rows=jcDevices.map(d=>{
       // Match using hostname (not displayName)
       const users=udMap.filter(m=>m.device===d.hostname).map(m=>m.username);
@@ -1056,8 +1064,8 @@ function analyze(data,company){
       const isException=!!exceptionReason;
 
       const overallOk=isException||(inJC
-        &&(company.hasEDR?edrStatus==='✅ Yes':true)
-        &&(company.hasCS?csStatus.includes('Active'):true)
+        &&(cpEdrActive?edrStatus==='✅ Yes':true)
+        &&(csEdrActive?csStatus.includes('Active'):true)
         &&(company.hasZS?zsState==='Registered':true)
         &&userMFA==='✅ Enrolled'
         &&(daysOff===null||daysOff<=7));
@@ -1066,8 +1074,8 @@ function analyze(data,company){
         'In JumpCloud':inJC?'✅ Yes':'❌ No',
         'JC Device':deviceName,
         'Offline Status':offlineStatus,
-        ...(company.hasEDR?{'EDR (CP)':edrStatus}:{}),
-        ...(company.hasCS?{'CrowdStrike':csStatus}:{}),
+        ...(cpEdrActive?{'EDR (CP)':edrStatus}:{}),
+        ...(csEdrActive?{'CrowdStrike':csStatus}:{}),
         ...(company.hasZS?{'Zscaler':zsStatus}:{}),
         'Policy Status':policyStatus,
         'User MFA':userMFA,
@@ -1100,8 +1108,8 @@ function analyze(data,company){
         title:'🔍 Master Summary',
         rows:masterRows,
         cols:['Name','Email','In JumpCloud','JC Device','Offline Status',
-              ...(company.hasEDR?['EDR (CP)']:[]),
-              ...(company.hasCS?['CrowdStrike']:[]),
+              ...(cpEdrActive?['EDR (CP)']:[]),
+              ...(csEdrActive?['CrowdStrike']:[]),
               ...(company.hasZS?['Zscaler']:[]),
               'Policy Status','User MFA','Device MFA','Overall']
       },
@@ -1125,16 +1133,16 @@ function analyze(data,company){
       .filter(r=>r._isException)
       .map(r=>({'Name':r.Name,'Email':r.Email,'JC Device':r['JC Device'],
         'In JumpCloud':r['In JumpCloud'],
-        ...(company.hasEDR?{'EDR (CP)':r['EDR (CP)']}:{}),
-        ...(company.hasCS?{'CrowdStrike':r['CrowdStrike']}:{}),
+        ...(cpEdrActive?{'EDR (CP)':r['EDR (CP)']}:{}),
+        ...(csEdrActive?{'CrowdStrike':r['CrowdStrike']}:{}),
         'Remark':r._exception,'Overall':r.Overall,_key:r._key}));
     if(exceptionRows.length){
       result.tables.exceptionsList={
         title:'✅ Exceptions / Whitelist',
         rows:exceptionRows,
         cols:['Name','Email','JC Device','In JumpCloud',
-              ...(company.hasEDR?['EDR (CP)']:[]),
-              ...(company.hasCS?['CrowdStrike']:[]),
+              ...(cpEdrActive?['EDR (CP)']:[]),
+              ...(csEdrActive?['CrowdStrike']:[]),
               'Remark','Overall']
       };
     }
