@@ -549,7 +549,7 @@ function analyze(data,company){
   const now=new Date();
   const result={generatedAt:now.toISOString(),company:company.name,tables:{},stats:{},alerts:[]};
   const norm=s=>(s||'').toString().trim().toLowerCase();
-  const normD=s=>(s||'').toString().trim().toUpperCase().replace(/\.LOCAL$/,'');
+  const normD=s=>(s||'').toString().trim().toUpperCase().replace(/\.LOCAL\b/g,'').trim();
 
   // ── PARSE EXCEPTIONS / WHITELIST ─────────────────────────────
   // Build email → reason and device → reason maps
@@ -598,8 +598,12 @@ function analyze(data,company){
     if(lc){try{dOff=Math.floor((now-new Date(lc))/86400000);}catch(e){}}
     // hostname = actual machine hostname (used for matching EDR/user-device)
     // displayName = friendly name shown in UI
-    const hostname=normD(r['hostname']||r['displayName']||r['name']||'');
-    const displayName=r['displayName']||r['hostname']||r['name']||'';
+    const rawHN=r['hostname']||r['name']||'';
+    const rawDN=r['displayName']||r['hostname']||r['name']||'';
+    // If displayName is an IP address, use hostname instead
+    const isIP=v=>/^\d{1,3}(\.\d{1,3}){3}$/.test((v||'').trim());
+    const hostname=normD(rawHN||rawDN);
+    const displayName=isIP(rawDN)?rawHN:rawDN;
     return {hostname, name:hostname, displayName, os:r['os']||r['osFamily']||'',lastContact:lc,daysOffline:dOff};
   }).filter(r=>r.hostname);
   // user-device map: use device.hostname for matching (not display_name)
