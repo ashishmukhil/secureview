@@ -616,7 +616,14 @@ function analyze(data,company){
     return groups.length>0?groups.join(', '):'—';
   };
 
-  const edrDevs=(data.edr||[]).map(r=>({name:normD(r['Computer Name']||r['computer_name']||r['hostname']||r['name']||''),lastConn:r['Last Connection']||r['last_connection']||'',version:r['Endpoint Version']||r['version']||'',virtualGroups:parseVirtualGroups(r['Virtual Groups']||r['virtual_groups']||'')})).filter(r=>r.name);
+  // EDR/CP hostname: case-insensitive column lookup
+  const getEDRField=(r,names)=>{const k=Object.keys(r).find(x=>names.map(n=>n.toLowerCase()).includes(x.toLowerCase()));return k?r[k]:'';};
+  const edrDevs=(data.edr||[]).map(r=>({
+    name:normD(getEDRField(r,['Computer Name','computer_name','Hostname','hostname','name'])),
+    lastConn:getEDRField(r,['Last Connection','last_connection','Last seen','Last Seen']),
+    version:getEDRField(r,['Endpoint Version','version']),
+    virtualGroups:parseVirtualGroups(getEDRField(r,['Virtual Groups','virtual_groups']))
+  })).filter(r=>r.name);
 
   const jcEmailSet=new Set(jcUsers.map(u=>u.email));
   const jcDevSet=new Set(jcDevices.map(d=>d.hostname)); // hostname-based set
