@@ -605,6 +605,7 @@ function analyze(data,company){
   // user-device map: use device.hostname for matching (not display_name)
   const udMap=(data.userDevice||[]).map(r=>({
     device:normD(r['device.hostname']||r['device.display_name']||r['device_name']||''),
+    deviceDisplay:normD(r['device.display_name']||r['device.hostname']||r['device_name']||''),
     username:norm(r['user.username']||r['username']||'')
   })).filter(r=>r.device);
   // EDR: Computer Name is the hostname
@@ -628,7 +629,7 @@ function analyze(data,company){
   const jcEmailSet=new Set(jcUsers.map(u=>u.email));
   const jcDevSet=new Set(jcDevices.map(d=>d.hostname)); // hostname-based set
   const edrSet=new Set(edrDevs.map(d=>d.name));         // EDR Computer Name = hostname
-  const mappedSet=new Set(udMap.map(u=>u.device));       // device.hostname based
+  const mappedSet=new Set([...udMap.map(u=>u.device),...udMap.map(u=>u.deviceDisplay)].filter(Boolean)); // hostname + displayName
 
   if(emailUsers.length){
     const rows=emailUsers.map(u=>{
@@ -655,9 +656,10 @@ function analyze(data,company){
   const csEdrEnabled=csEdrActive; // use top-level flag
     const rows=jcDevices.map(d=>{
       // Match using hostname (not displayName)
-      const users=udMap.filter(m=>m.device===d.hostname).map(m=>m.username);
+      const dhn=d.hostname; const ddn=normD(d.displayName||'');
+      const users=udMap.filter(m=>m.device===dhn||m.device===ddn||m.deviceDisplay===dhn||m.deviceDisplay===ddn).map(m=>m.username);
       const hasEDR=cpEdrEnabled?edrSet.has(d.hostname):null; // null = not applicable
-      const isMapped=mappedSet.has(d.hostname);
+      const isMapped=mappedSet.has(d.hostname)||mappedSet.has(normD(d.displayName||''));
       const day=d.daysOffline;let offLbl='Unknown';
       if(day!==null){if(day===0)offLbl='🟢 Online Today';else if(day<=7)offLbl=`🟡 ${day}d`;else if(day<=30)offLbl=`🟠 ${day}d`;else offLbl=`🔴 ${day}d`;}
       const row={
@@ -957,7 +959,7 @@ function analyze(data,company){
       if(jcUser){
         const ud=udMap.filter(m=>m.username===jcUser.username);
         if(ud.length){
-          const devHost=ud[0].device;
+          const devHost=ud[0].device||ud[0].deviceDisplay;
           const dev=jcDevices.find(d=>d.hostname===devHost);
           if(dev){
             deviceName=dev.displayName;
