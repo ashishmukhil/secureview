@@ -637,47 +637,59 @@ function analyze(data,company){
   }
 
   if(jcDevices.length){
+    const cpEdrEnabled=!!(company.hasEDR); // Checkpoint EDR enabled for this company
     const rows=jcDevices.map(d=>{
       // Match using hostname (not displayName)
       const users=udMap.filter(m=>m.device===d.hostname).map(m=>m.username);
-      const hasEDR=edrSet.has(d.hostname);
+      const hasEDR=cpEdrEnabled?edrSet.has(d.hostname):null; // null = not applicable
       const isMapped=mappedSet.has(d.hostname);
       const day=d.daysOffline;let offLbl='Unknown';
       if(day!==null){if(day===0)offLbl='🟢 Online Today';else if(day<=7)offLbl=`🟡 ${day}d`;else if(day<=30)offLbl=`🟠 ${day}d`;else offLbl=`🔴 ${day}d`;}
-      return {
+      const row={
         'Display Name':d.displayName,
-        'Hostname':d.hostname,  // actual hostname used for matching
+        'Hostname':d.hostname,
         'Mapped User':users.join(', ')||'⚠️ No User',
-        'In JC':'✅','EDR':hasEDR?'✅ Yes':'❌ No',
+        'In JC':'✅',
         'Last Seen':d.lastContact?d.lastContact.substring(0,10):'N/A',
         'Days Offline':day!==null?day:'N/A','Status':offLbl,OS:d.os,
-        _noUser:!isMapped,_noEDR:!hasEDR,_off30:day!==null&&day>30,_key:d.hostname
+        _noUser:!isMapped,_off30:day!==null&&day>30,_key:d.hostname
       };
+      // Only add EDR column if Checkpoint is enabled for this company
+      if(cpEdrEnabled){row['EDR']=hasEDR?'✅ Yes':'❌ No';row._noEDR=!hasEDR;}
+      return row;
     });
-    const edrOnly=edrDevs.filter(d=>!jcDevSet.has(d.name)).map(d=>({
-      'Display Name':d.name,'Hostname':d.name,
-      'Mapped User':'N/A','In JC':'❌ No','EDR':'✅ Yes',
-      'Last Seen':String(d.lastConn).substring(0,10)||'N/A','Days Offline':'N/A',
-      'Status':'🟠 Not in JC',OS:'N/A',_notInJC:true,_key:d.name
-    }));
-    result.tables.deviceStatus={title:'All Devices',rows:[...rows,...edrOnly],cols:['Display Name','Hostname','Mapped User','In JC','EDR','Last Seen','Days Offline','Status','OS']};
+    // EDR-only devices: only relevant if Checkpoint enabled
+    const edrOnly=cpEdrEnabled
+      ?edrDevs.filter(d=>!jcDevSet.has(d.name)).map(d=>({
+          'Display Name':d.name,'Hostname':d.name,
+          'Mapped User':'N/A','In JC':'❌ No','EDR':'✅ Yes',
+          'Last Seen':String(d.lastConn).substring(0,10)||'N/A','Days Offline':'N/A',
+          'Status':'🟠 Not in JC',OS:'N/A',_notInJC:true,_key:d.name
+        }))
+      :[];
+    // Build cols dynamically — only include EDR col if Checkpoint enabled
+    const deviceCols=['Display Name','Hostname','Mapped User','In JC',...(cpEdrEnabled?['EDR']:[]),'Last Seen','Days Offline','Status','OS'];
+    result.tables.deviceStatus={title:'All Devices',rows:[...rows,...edrOnly],cols:deviceCols};
     result.stats.totalDevices=jcDevices.length;result.stats.devicesWithUser=rows.filter(r=>!r._noUser).length;result.stats.devicesNoUser=rows.filter(r=>r._noUser).length;
-    result.stats.devicesWithEDR=rows.filter(r=>!r._noEDR).length;result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
-    result.stats.edrNotInJC=edrOnly.length;
-    result.stats.edrFileUploaded=!!(data.edr&&data.edr.length); // flag for UI
+    // CP EDR stats only if enabled
+    if(cpEdrEnabled){
+      result.stats.devicesWithEDR=rows.filter(r=>!r._noEDR).length;
+      result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
+      result.stats.edrNotInJC=edrOnly.length;
+      result.stats.edrFileUploaded=!!(data.edr&&data.edr.length);
+      if(data.edr&&data.edr.length){
+        if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT Checkpoint EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Display Name']).slice(0,5).join(', ')});
+        if(result.stats.edrNotInJC>0)result.alerts.push({type:'warning',text:`${result.stats.edrNotInJC} EDR devices not in JumpCloud`,sub:edrOnly.map(r=>r['Display Name']).slice(0,5).join(', ')});
+      }
+      result.tables.noEDR={title:'JC No EDR',rows:rows.filter(r=>r._noEDR).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],User:r['Mapped User'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],_key:r._key})),cols:['Display Name','Hostname','User','Last Seen','Days Offline']};
+      result.tables.edrNotInJC={title:'EDR Not in JC',rows:edrOnly.map(r=>({'Hostname (EDR)':r['Hostname'],'Last EDR Seen':r['Last Seen'],_key:r._key})),cols:['Hostname (EDR)','Last EDR Seen']};
+    }
     result.stats.offlineGT7=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>7).length;
     result.stats.offlineGT30=rows.filter(r=>typeof r['Days Offline']==='number'&&r['Days Offline']>30).length;
     result.stats.onlineToday=rows.filter(r=>r['Days Offline']===0).length;
-    // Only show EDR alerts if Checkpoint EDR file was uploaded
-    if(data.edr&&data.edr.length){
-      if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Display Name']).slice(0,5).join(', ')});
-      if(result.stats.edrNotInJC>0)result.alerts.push({type:'warning',text:`${result.stats.edrNotInJC} EDR devices not in JumpCloud`,sub:edrOnly.map(r=>r['Display Name']).slice(0,5).join(', ')});
-    }
     if(result.stats.offlineGT30>0)result.alerts.push({type:'critical',text:`${result.stats.offlineGT30} devices offline >30 days`,sub:rows.filter(r=>r._off30).map(r=>r['Display Name']+'('+r['Days Offline']+'d)').slice(0,5).join(', ')});
     if(result.stats.offlineGT7>0)result.alerts.push({type:'warning',text:`${result.stats.offlineGT7} devices offline >7 days`,sub:''});
     if(result.stats.devicesNoUser>0)result.alerts.push({type:'info',text:`${result.stats.devicesNoUser} devices not mapped to any user`,sub:''});
-    result.tables.noEDR={title:'JC No EDR',rows:rows.filter(r=>r._noEDR).map(r=>({'Display Name':r['Display Name'],'Hostname':r['Hostname'],User:r['Mapped User'],'Last Seen':r['Last Seen'],'Days Offline':r['Days Offline'],_key:r._key})),cols:['Display Name','Hostname','User','Last Seen','Days Offline']};
-    result.tables.edrNotInJC={title:'EDR Not in JC',rows:edrOnly.map(r=>({'Hostname (EDR)':r['Hostname'],'Last EDR Seen':r['Last Seen'],_key:r._key})),cols:['Hostname (EDR)','Last EDR Seen']};
   }
 
   // ── ZSCALER ANALYSIS ─────────────────────────────────────────
