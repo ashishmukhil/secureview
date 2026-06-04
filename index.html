@@ -697,6 +697,7 @@ function analyze(data,company){
       result.stats.devicesWithEDR=rows.filter(r=>!r._noEDR).length;
       result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
       result.stats.edrNotInJC=edrOnly.length;
+      result.stats.totalEDR=edrDevs.length;
       result.stats.edrFileUploaded=!!(data.edr&&data.edr.length);
       if(data.edr&&data.edr.length){
         if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT Checkpoint EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Display Name']).slice(0,5).join(', ')});
@@ -772,6 +773,15 @@ function analyze(data,company){
     result.stats.zsUnregistered=zsRows.filter(r=>r['Effective State']==='Unregistered').length;
     result.stats.zsRemovePending=zsRows.filter(r=>r['Effective State']==='Remove pending').length;
     result.stats.zsNotFound=notInZS.length;
+    // EDR devices not in Zscaler (by hostname match)
+    if(data.edr&&data.edr.length){
+      const zsHostSet=new Set(zsUsers.map(u=>u.hostname?normD(u.hostname):'').filter(Boolean));
+      result.stats.edrNoZS=edrDevs.filter(d=>!zsHostSet.has(d.name)).length;
+    }
+    if(data.crowdstrike&&data.crowdstrike.length){
+      const zsHostSet=new Set(zsUsers.map(u=>u.hostname?normD(u.hostname):'').filter(Boolean));
+      result.stats.csNoZS=csDevs?csDevs.filter(d=>!zsHostSet.has(d.name)).length:0;
+    }
 
     if(notInZS.length>0)result.alerts.push({type:'warning',text:`${notInZS.length} email users not in Zscaler`,sub:notInZS.slice(0,3).map(r=>r.Email).join(', ')+(notInZS.length>3?'...':'')});
     if(result.stats.zsUnregistered>0)result.alerts.push({type:'info',text:`${result.stats.zsUnregistered} Zscaler users Unregistered (logged out)`,sub:''});
@@ -779,6 +789,7 @@ function analyze(data,company){
   }
 
   // ── CROWDSTRIKE ANALYSIS ──────────────────────────────────────
+  let csDevs=[]; // hoisted for ZS cross-check
   if(data.crowdstrike&&data.crowdstrike.length){
     const GENERIC_CS_GROUPS=new Set(['Newly added Server and Devices']);
     const parseCSGroups=str=>{
@@ -794,7 +805,6 @@ function analyze(data,company){
     const isAllAssetsFormat=rowKeys.includes('manufacturer')||rowKeys.includes('os version')||
       (!rowKeys.includes('host id')&&!rowKeys.includes('sensor version')&&rowKeys.includes('last seen'));
 
-    let csDevs=[];
     if(isAllAssetsFormat){
       // all_assets CSV format — find columns case-insensitively
       const getCol=(row,names)=>{
@@ -1301,18 +1311,45 @@ function renderDashboard(result,c){
 
   const mkCard=(cls,num,lbl,sub,sk,lb)=>`<div class="sc ${cls}"><div class="sn">${num}</div><div class="sl2">${lbl}</div><div class="ss">${sub}</div>${mkPill(sk,lb)}</div>`;
 
+  const edrLabel=cpEdrActive?'EDR (CP)':csEdrActive?'CrowdStrike EDR':'EDR';
+  const edrTotal=cpEdrActive?(s.totalEDR||0):csEdrActive?(s.csInJC||0)+( s.csNotInJC||0):0;
+  const edrNoJC=cpEdrActive?(s.edrNotInJC||0):csEdrActive?(s.csNotInJC||0):0;
+  const jcNoEDR=cpEdrActive?(s.devicesNoEDR||0):csEdrActive?(s.jcNoCS||0):0;
+  const edrNoZS=cpEdrActive?(s.edrNoZS||0):csEdrActive?(s.csNoZS||0):0;
+  const hasEDRAny=cpEdrActive||csEdrActive;
+
   const cards=[
-    s.totalEmailUsers!==undefined?mkCard('cb',s.totalEmailUsers,'Email Users',`${s.usersInJC||0} in JumpCloud`,'totalEmailUsers',false):'',
-    s.usersNotInJC!==undefined?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Not in JumpCloud',s.usersNotInJC>0?'Action needed':'All mapped ✅','usersNotInJC',true):'',
-    s.totalDevices!==undefined?mkCard('cp',s.totalDevices,'JC Devices',`${s.devicesWithUser||0} user-mapped`,'totalDevices',false):'',
-    cpEdrActive&&s.devicesNoEDR!==undefined?mkCard(s.devicesNoEDR>0?'cr':'cg',s.devicesNoEDR,'No EDR (CP)',s.devicesNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
-    cpEdrActive&&s.edrNotInJC!==undefined?mkCard(s.edrNotInJC>0?'co':'cg',s.edrNotInJC,'EDR Not in JC','Shadow devices','edrNotInJC',true):'',
-    s.offlineGT7!==undefined?mkCard(s.offlineGT7>0?'cy':'cg',s.offlineGT7,'Offline >7 Days',`${s.offlineGT30||0} offline >30d`,'offlineGT7',true):'',
-    s.onlineToday!==undefined?mkCard('cg',s.onlineToday,'Online Today','Active devices','onlineToday',false):'',
-    s.zsRegistered!==undefined?mkCard(s.zsNotFound>0?'co':'cg',s.zsRegistered,'ZS Registered',`${s.zsUnregistered||0} unregistered`,'zsRegistered',false):'',
-    s.zsNotFound!==undefined&&s.zsNotFound>0?mkCard('cr',s.zsNotFound,'No Zscaler','Not in ZS','zsNotFound',true):'',
-    s.csInJC!==undefined?mkCard(s.jcNoCS>0?'co':'cg',s.csInJC,'CrowdStrike',`${s.jcNoCS||0} JC w/o CS`,'csInJC',false):'',
-    s.csNotInJC!==undefined&&s.csNotInJC>0?mkCard('cy',s.csNotInJC,'CS Not in JC','Investigate','csNotInJC',true):'',
+    // 1. Total Users
+    s.totalEmailUsers!==undefined
+      ?mkCard('cb',s.totalEmailUsers,'Total Users',`${s.usersInJC||0} in JC  |  ${s.usersNotInJC||0} not in JC`,'totalEmailUsers',false):'',
+    // 2. JC Devices
+    s.totalDevices!==undefined
+      ?mkCard('cp',s.totalDevices,'JC Devices',`${s.devicesWithUser||0} user-mapped`,'totalDevices',false):'',
+    // 3. User ↔ Device Bind
+    s.totalDevices!==undefined
+      ?mkCard(s.devicesNoUser>0?'cy':'cg',s.devicesWithUser||0,'User-Device Bind',`${s.devicesNoUser||0} unbound devices`,'devicesWithUser',false):'',
+    // 4. EDR Devices
+    hasEDRAny
+      ?mkCard('cb',edrTotal,edrLabel+' Devices',`${edrNoJC} not in JC`,'csTotal',false):'',
+    // 5. Zscaler Devices
+    s.zsTotal!==undefined
+      ?mkCard('cb',s.zsTotal,'Zscaler Devices',`${s.zsRegistered||0} registered`,'zsTotal',false):'',
+    // 6. Email hai, JC nahi
+    s.usersNotInJC!==undefined
+      ?mkCard(s.usersNotInJC>0?'cr':'cg',s.usersNotInJC,'Email — No JC',s.usersNotInJC>0?'⚠️ Not enrolled':'All enrolled ✅','usersNotInJC',true):'',
+    // 7. JC hai, EDR nahi
+    hasEDRAny&&s.totalDevices!==undefined
+      ?mkCard(jcNoEDR>0?'cr':'cg',jcNoEDR,'JC — No EDR',jcNoEDR>0?'⚠️ Unprotected':'All protected ✅','devicesNoEDR',true):'',
+    // 8. EDR hai, JC nahi
+    hasEDRAny
+      ?mkCard(edrNoJC>0?'co':'cg',edrNoJC,'EDR — No JC','Shadow devices','edrNotInJC',true):'',
+    // 9. JC hai, Zscaler nahi
+    s.zsNotFound!==undefined
+      ?mkCard(s.zsNotFound>0?'cr':'cg',s.zsNotFound,'JC — No Zscaler',s.zsNotFound>0?'⚠️ Missing':'All in ZS ✅','zsNotFound',true):'',
+    // 10. EDR hai, Zscaler nahi
+    hasEDRAny&&s.zsTotal!==undefined
+      ?mkCard(edrNoZS>0?'co':'cg',edrNoZS,'EDR — No Zscaler',edrNoZS>0?'Check coverage':'All covered ✅','edrNoZS',true):'',
+    // Extra: breach check if run
     s.breachFound!==undefined?mkCard(s.breachFound>0?'cr':'cg',s.breachFound,'Breached Users',`${s.breachChecked||0} checked`,'breachFound',true):'',
   ].filter(Boolean);
 
