@@ -625,12 +625,19 @@ function analyze(data,company){
 
   // EDR/CP hostname: case-insensitive column lookup
   const getEDRField=(r,names)=>{const k=Object.keys(r).find(x=>names.map(n=>n.toLowerCase()).includes(x.toLowerCase()));return k?r[k]:'';};
-  const edrDevs=(data.edr||[]).map(r=>({
-    name:normD(getEDRField(r,['Computer Name','computer_name','Hostname','hostname','name'])),
-    lastConn:getEDRField(r,['Last Connection','last_connection','Last seen','Last Seen']),
-    version:getEDRField(r,['Endpoint Version','version']),
-    virtualGroups:parseVirtualGroups(getEDRField(r,['Virtual Groups','virtual_groups']))
-  })).filter(r=>r.name);
+  const LOC_SKIP=/^(all |windows|mac os|laptops)/i;
+  const edrDevs=(data.edr||[]).map(r=>{
+    const allGroups=parseVirtualGroups(getEDRField(r,['Virtual Groups','virtual_groups']));
+    const locGroups=allGroups.filter(g=>!LOC_SKIP.test(g.trim()));
+    return {
+      name:normD(getEDRField(r,['Computer Name','computer_name','Hostname','hostname','name'])),
+      lastConn:getEDRField(r,['Last Connection','last_connection','Last seen','Last Seen']),
+      version:getEDRField(r,['Endpoint Version','version']),
+      virtualGroups:allGroups,
+      locationGroups:locGroups,
+      hasLocation:locGroups.length>0
+    };
+  }).filter(r=>r.name);
 
   const jcEmailSet=new Set(jcUsers.map(u=>u.email));
   const jcDevSet=new Set(jcDevices.map(d=>d.hostname)); // hostname-based set
@@ -703,6 +710,15 @@ function analyze(data,company){
       result.stats.devicesNoEDR=rows.filter(r=>r._noEDR).length;
       result.stats.edrNotInJC=edrOnly.length;
       result.stats.totalEDR=edrDevs.length;
+      result.stats.edrNoLocation=edrDevs.filter(d=>!d.hasLocation).length;
+      result.stats.edrWithLocation=edrDevs.filter(d=>d.hasLocation).length;
+      // No Location tab
+      const noLocRows=edrDevs.filter(d=>!d.hasLocation).map(d=>({'Computer Name':d.name,'Last Connection':String(d.lastConn).substring(0,16)||'N/A','Groups':d.virtualGroups.join(', ')||'None',_key:d.name}));
+      result.tables.edrNoLocation={title:'EDR — No Location',rows:noLocRows,cols:['Computer Name','Last Connection','Groups']};
+      // Location summary tab
+      const locMap={};edrDevs.filter(d=>d.hasLocation).forEach(d=>d.locationGroups.forEach(l=>{if(!locMap[l])locMap[l]=[];locMap[l].push(d.name);}));
+      const locSummaryRows=Object.entries(locMap).sort((a,b)=>b[1].length-a[1].length).map(([loc,devs])=>({'Location Group':loc,'Device Count':devs.length,'Devices':devs.join(', '),_key:loc}));
+      result.tables.locationSummary={title:'Location Groups',rows:locSummaryRows,cols:['Location Group','Device Count','Devices']};
       result.stats.edrFileUploaded=!!(data.edr&&data.edr.length);
       if(data.edr&&data.edr.length){
         if(result.stats.devicesNoEDR>0)result.alerts.push({type:'critical',text:`${result.stats.devicesNoEDR} JC devices WITHOUT Checkpoint EDR`,sub:rows.filter(r=>r._noEDR).map(r=>r['Display Name']).slice(0,5).join(', ')});
@@ -1350,6 +1366,9 @@ function renderDashboard(result,c){
     // 4. EDR Devices
     hasEDRAny
       ?mkCard('cb',edrTotal,edrLabel+' Devices',`${edrNoJC} not in JC`,'csTotal',false):'',
+    // 4b. EDR No Location
+    cpEdrActive&&s.edrNoLocation!==undefined
+      ?mkCard(s.edrNoLocation>0?'co':'cg',s.edrNoLocation,'EDR — No Location',s.edrNoLocation>0?'⚠️ Unassigned':'All assigned ✅','edrNoLocation',true):'',
     // 5. Zscaler Devices
     s.zsTotal!==undefined
       ?mkCard('cb',s.zsTotal,'Zscaler Devices',`${s.zsInJC||0} in JC  |  ${s.zsOnlyInZS||0} extra`,'zsTotal',false):'',
@@ -1375,7 +1394,7 @@ function renderDashboard(result,c){
   const alerts=(result.alerts||[]).map(a=>`<div class="al ${a.type==='critical'?'crit':a.type==='warning'?'warn':'info'}"><span style="font-size:13px">${a.type==='critical'?'🔴':a.type==='warning'?'🟡':'🔵'}</span><div><div class="al-t"><strong>${a.text}</strong></div>${a.sub?`<div class="al-s">${a.sub}</div>`:''}</div></div>`).join('');
 
   // Fixed tab order matching 10 dashboard cards
-  const TAB_ORDER=['emailStatus','deviceStatus','unboundDevices','csStatus','zsStatus','notInJC','noEDR','edrNotInJC','notInZS','zsNoJC','masterSummary','edrStatus','zsProblematic','notInCS'];
+  const TAB_ORDER=['emailStatus','deviceStatus','unboundDevices','csStatus','zsStatus','notInJC','noEDR','edrNotInJC','notInZS','zsNoJC','locationSummary','edrNoLocation','masterSummary','edrStatus','zsProblematic','notInCS'];
   const orderedTables=[
     ...TAB_ORDER.filter(k=>result.tables[k]).map(k=>[k,result.tables[k]]),
     ...Object.entries(result.tables).filter(([k])=>!TAB_ORDER.includes(k))
