@@ -1565,7 +1565,9 @@ async function exportExcel(){
     t.rows.forEach((row,ri)=>{
       const overall=String(row['Overall']||'');const rowBg=overall.includes('Check')?DYL:(ri%2===0?WHT:LGR);
       t.cols.forEach((col,ci)=>{
-        const raw=row[col];const val=raw!=null?String(raw).replace(/[✅❌🟢🟡🟠🔴⚠️⚫]/g,'').trim():'';
+        const raw=row[col];let val=raw!=null?String(raw).replace(/[✅❌🟢🟡🟠🔴⚠️⚫]/g,'').trim():'';
+        // map emoji-stripped values for status cols
+        if(SCOLS.has(col)){if(String(raw).includes('✅'))val='Yes';else if(String(raw).includes('❌'))val='No';}
         const cell=ws.getCell(ri+3,ci+1);
         if(SCOLS.has(col)){cell.value=val;ap(cell,gss(val,rowBg));}
         else if(col==='Days Offline'&&typeof raw==='number'){cell.value=raw;ap(cell,cs(raw>30?DRD:raw>7?DOR:raw>0?DYL:DGN,'000000',false,9,'center'));}
