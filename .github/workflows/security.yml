@@ -70,6 +70,7 @@ jobs:
             -F "scan_type=Semgrep JSON Report" \
             -F "file=@sast-report.json" \
             -F "product_name=${{ github.repository }}" \
+            -F "product_type_name=Development" \
             -F "engagement_name=SAST" \
             -F "target_start=${TODAY}" \
             -F "target_end=${TODAY}" \
@@ -161,6 +162,7 @@ jobs:
             -F "scan_type=OSV Scan" \
             -F "file=@sca-report.json" \
             -F "product_name=${{ github.repository }}" \
+            -F "product_type_name=Development" \
             -F "engagement_name=SCA" \
             -F "target_start=${TODAY}" \
             -F "target_end=${TODAY}" \
