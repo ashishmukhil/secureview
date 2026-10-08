@@ -1,14 +1,10 @@
 {
-  "name": "demo-repo",
-  "version": "0.2.0",
-  "description": "A sample package.json",
-  "scripts": {
-    "build": "node build.js",
-    "start": "node server.js",
-    "test": "echo \"No tests configured\""
-  },
+  "name": "secureview-test",
+  "version": "1.0.0",
+  "description": "Test project for vulnerability scanning",
+  "main": "index.js",
   "dependencies": {
-    "@primer/css": "17.0.1"
-  },
-  "license": "MIT"
+    "lodash": "4.17.15",
+    "axios": "0.21.1"
+  }
 }
