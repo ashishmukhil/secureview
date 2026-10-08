@@ -73,7 +73,7 @@ jobs:
             -F "target_start=${TODAY}" \
             -F "target_end=${TODAY}" \
             -F "auto_create_context=true" \
-            -F "close_old_findings=true" || true
+            -F "close_old_findings=true"
 
   # ------------------------------------------------------------------
   # SCA - checks BORROWED packages against known-vulnerability lists
@@ -152,4 +152,4 @@ jobs:
             -F "target_start=${TODAY}" \
             -F "target_end=${TODAY}" \
             -F "auto_create_context=true" \
-            -F "close_old_findings=true" || true
+            -F "close_old_findings=true"
