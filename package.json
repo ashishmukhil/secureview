@@ -1,0 +1,14 @@
+{
+  "name": "demo-repo",
+  "version": "0.2.0",
+  "description": "A sample package.json",
+  "scripts": {
+    "build": "node build.js",
+    "start": "node server.js",
+    "test": "echo \"No tests configured\""
+  },
+  "dependencies": {
+    "@primer/css": "17.0.1"
+  },
+  "license": "MIT"
+}
