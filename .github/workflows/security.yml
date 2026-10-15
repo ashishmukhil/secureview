@@ -56,37 +56,17 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "Value: '${{ vars.SEND_TO_DEFECTDOJO }}'"
+          echo "Value: '${{ vars.SEND_TO_NXG_SECURE }}'"
           echo '${{ toJSON(vars) }}'
 
-      - name: Send to DefectDojo
-        if: always() && vars.SEND_TO_DEFECTDOJO == 'true'
-        shell: bash
-        run: |
-          TODAY=$(date +%Y-%m-%d)
-          
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.DEFECTDOJO_URL }}/api/v2/import-scan/" \
-            -H "Authorization: Token ${{ secrets.DEFECTDOJO_API_KEY }}" \
-            -F "scan_type=Semgrep JSON Report" \
-            -F "file=@sast-report.json" \
-            -F "product_name=${{ github.repository }}" \
-            -F "product_type_name=Development" \
-            -F "engagement_name=SAST" \
-            -F "target_start=${TODAY}" \
-            -F "target_end=${TODAY}" \
-            -F "auto_create_context=true" \
-            -F "close_old_findings=true")
-
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | head -n -1)
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
-
-          echo "DefectDojo HTTP Status: $HTTP_STATUS"
-          echo "DefectDojo Response: $HTTP_BODY"
-
-          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
-            echo "Error: DefectDojo SAST import failed!"
-            exit 1
-          fi
+      - name: Upload scan to NXG Secure
+        if: always()
+        uses: mukhil-sudo/CI-CD-SaaS/ci-templates/github-actions@main
+        with:
+          url: https://nxg.app.nxgsecure.com
+          token: ${{ secrets.SECURITY_PLATFORM_TOKEN }}
+          scan-type: Semgrep JSON Report
+          file: sast-report.json
 
   # ------------------------------------------------------------------
   # SCA - checks BORROWED packages against known-vulnerability lists
@@ -148,34 +128,14 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "Value: '${{ vars.SEND_TO_DEFECTDOJO }}'"
+          echo "Value: '${{ vars.SEND_TO_NXG_SECURE }}'"
           echo '${{ toJSON(vars) }}'
 
-      - name: Send to DefectDojo
-        if: always() && vars.SEND_TO_DEFECTDOJO == 'true'
-        shell: bash
-        run: |
-          TODAY=$(date +%Y-%m-%d)
-          
-          HTTP_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.DEFECTDOJO_URL }}/api/v2/import-scan/" \
-            -H "Authorization: Token ${{ secrets.DEFECTDOJO_API_KEY }}" \
-            -F "scan_type=OSV Scan" \
-            -F "file=@sca-report.json" \
-            -F "product_name=${{ github.repository }}" \
-            -F "product_type_name=Development" \
-            -F "engagement_name=SCA" \
-            -F "target_start=${TODAY}" \
-            -F "target_end=${TODAY}" \
-            -F "auto_create_context=true" \
-            -F "close_old_findings=true")
-
-          HTTP_BODY=$(echo "$HTTP_RESPONSE" | head -n -1)
-          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | tail -n 1)
-
-          echo "DefectDojo HTTP Status: $HTTP_STATUS"
-          echo "DefectDojo Response: $HTTP_BODY"
-
-          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
-            echo "Error: DefectDojo SCA import failed!"
-            exit 1
-          fi
+      - name: Upload scan to NXG Secure
+        if: always()
+        uses: mukhil-sudo/CI-CD-SaaS/ci-templates/github-actions@main
+        with:
+          url: https://nxg.app.nxgsecure.com
+          token: ${{ secrets.SECURITY_PLATFORM_TOKEN }}
+          scan-type: OSV Scan
+          file: sca-report.json
